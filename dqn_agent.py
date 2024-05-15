@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential 
-from tensorflow.keras.layers import Input, Conv2d, MaxPooling2D, Flatten, Dense
+from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Flatten, Dense
 from tensorflow.keras.optimizers import Adam
 from replay_buffer import ReplayBuffer
 
@@ -29,6 +29,30 @@ class DQNAgent():
         self.epsilon_decay = epsilon_decay
         self.learning_rate = learning_rate
         self.model = self.build_model()
+        
+    def memorize(self, state, action, reward, next_state, terminated, truncated):
+        """
+        Store a transition in the replay buffer.
+
+        Args:
+            See ReplayBuffer.add()
+        """
+        self.memory.add(state, action, reward, next_state, terminated, truncated)
+        
+    def act(self, state):
+        """
+        Select an action based on the current policy.
+        
+        Args:
+            state (numpy array): The current state.
+        
+        Returns:
+            numpy array: The action selected.
+        """
+        if np.random.rand() <= self.epsilon:  # Explore
+            return np.random.uniform(-1.0, 1.0, self.action_size)  
+        q_values = self.model.predict(state[np.newaxis, ...])  # Exploit
+        return np.clip(q_values[0], -1.0, 1.0)  
     
     def build_model(self):
         """
@@ -39,11 +63,11 @@ class DQNAgent():
         """
         model = Sequential()
         model.add(Input(shape=(96, 96, 3)))
-        model.add(Conv2d(32, kernel_size=(3,3), input_dim=self.state_size, activation='relu'))
+        model.add(Conv2D(32, kernel_size=(3,3), input_dim=self.state_size, activation='relu'))
         model.add(MaxPooling2D(pool_size=(2,2)))
-        model.add(Conv2d(64, kernel_size=(3,3), input_dim=self.state_size, activation='relu'))
+        model.add(Conv2D(64, kernel_size=(3,3), input_dim=self.state_size, activation='relu'))
         model.add(MaxPooling2D(pool_size=(2,2)))
-        model.add(Conv2d(64, kernel_size=(3,3), input_dim=self.state_size, activation='relu'))
+        model.add(Conv2D(64, kernel_size=(3,3), input_dim=self.state_size, activation='relu'))
         model.add(MaxPooling2D(pool_size=(2,2)))
         model.add(Flatten())
         model.add(Dense(512, activation='relu'))
@@ -51,3 +75,32 @@ class DQNAgent():
         model.add(Dense(self.action_size, activation='linear'))
         model.compile(loss="mse", optimizer=Adam(learning_rate=self.learning_rate))
         return model
+    
+    def train_model(self, batch_size):
+        """
+        Train the neural network using a batch of transitions from memory.
+        
+        Args:
+            batch_size (int): The number of transitions to sample for training.
+        """
+        if len(self.memory) < batch_size:
+            return
+
+        states, actions, rewards, next_states, terminateds, truncateds = self.memory.sample(batch_size)
+        train_state = []
+        train_target = []
+
+        for state, action, reward, next_state, terminated, truncated in zip(states, actions, rewards, next_states, terminateds, truncateds):
+            target = self.model.predict(state[np.newaxis, ...])[0]
+            if terminated or truncated:
+                target_value = reward
+            else:
+                t = self.model.predict(next_state[np.newaxis, ...])[0]
+                target_value = reward + self.gamma * np.amax(t)
+            train_state.append(state)
+            train_target.append(target_value)
+
+        self.model.fit(np.array(train_state), np.array(train_target), epochs=1, verbose=0)
+
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay

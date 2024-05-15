@@ -45,6 +45,6 @@ class ReplayBuffer:
         Returns:
             tuple: A tuple of numpy arrays (states, actions, rewards, next_states, terminated, truncated).
         """
-        indices = np.rand.choice(len(self.buffer), batch_size, replace=False)
+        indices = np.random.choice(len(self.buffer), batch_size, replace=False)
         sample = [self.buffer[i] for i in indices]
-        return map(np.array, zip(*sample))
+        return tuple(map(np.array, zip(*sample)))
