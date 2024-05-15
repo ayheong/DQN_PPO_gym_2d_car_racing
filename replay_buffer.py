@@ -1,7 +1,6 @@
 import numpy as np
 from collections import deque
 
-# Buffer to hold previous actions
 class ReplayBuffer: 
     def __init__(self, max_size):
         """
