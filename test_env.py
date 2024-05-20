@@ -10,7 +10,6 @@ agent = DQNAgent(state_size=state_size, action_size=action_size)
 
 episodes = 1000  
 batch_size = 32
-test_interval = 50  # Test the model every 50 episodes
 
 for episode in range(episodes):
     state, _ = env.reset()
@@ -25,9 +24,6 @@ for episode in range(episodes):
         next_state, reward, terminated, truncated, _ = env.step(action)
         next_state = np.array(next_state)
 
-        if terminated:
-            reward -= 100
-
         total_reward += reward
 
         episode_memory.append((state, action, reward, next_state, terminated, truncated))
@@ -38,8 +34,5 @@ for episode in range(episodes):
         agent.memorize(state, action, reward, next_state, terminated, truncated)
 
     agent.train_model(batch_size)
-    
-    if (episode + 1) % test_interval == 0:
-        agent.test_model(env)
 
     print(f"Episode {episode + 1}/{episodes} completed with total reward: {total_reward}")

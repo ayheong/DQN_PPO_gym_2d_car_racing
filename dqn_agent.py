@@ -50,9 +50,9 @@ class DQNAgent():
             numpy array: The action selected.
         """
         if np.random.rand() <= self.epsilon:  # Explore
-            return np.random.uniform(-1.0, 1.0, self.action_size)  
+            return np.random.uniform(-1.0, 1.0, self.action_size)  # Random Choice
         q_values = self.model.predict(state[np.newaxis, ...])  # Exploit
-        return np.clip(q_values[0], -1.0, 1.0)  
+        return np.clip(q_values[0], -1.0, 1.0)  # 
     
     def build_model(self):
         """
@@ -87,20 +87,25 @@ class DQNAgent():
             return
 
         states, actions, rewards, next_states, terminateds, truncateds = self.memory.sample(batch_size)
-        train_state = []
-        train_target = []
-
-        for state, action, reward, next_state, terminated, truncated in zip(states, actions, rewards, next_states, terminateds, truncateds):
-            target = self.model.predict(state[np.newaxis, ...])[0]
-            if terminated or truncated:
-                target_value = reward
+        
+        states = np.array(states)
+        next_states = np.array(next_states)
+        
+        q_values = self.model.predict(states)
+        q_values_next = self.model.predict(next_states)
+        
+        for i in range(batch_size):
+            if isinstance(actions[i], np.ndarray):
+                action_index = np.argmax(actions[i]) 
             else:
-                t = self.model.predict(next_state[np.newaxis, ...])[0]
-                target_value = reward + self.gamma * np.amax(t)
-            train_state.append(state)
-            train_target.append(target_value)
+                action_index = int(actions[i])
+            if terminateds[i] or truncateds[i]:
+                q_values[i][action_index] = rewards[i]
+            else:
+                q_values[i][action_index] = rewards[i] + self.gamma * np.amax(q_values_next[i])
+        
 
-        self.model.fit(np.array(train_state), np.array(train_target), epochs=1, verbose=0)
+        self.model.fit(states, q_values, epochs=1, verbose=0)
 
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
