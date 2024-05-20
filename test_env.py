@@ -8,8 +8,9 @@ action_size = env.action_space.shape[0]
 
 agent = DQNAgent(state_size=state_size, action_size=action_size)
 
-episodes = 1000  
+episodes = 500  
 batch_size = 32
+save_interval = 100
 
 for episode in range(episodes):
     state, _ = env.reset()
@@ -36,3 +37,8 @@ for episode in range(episodes):
     agent.train_model(batch_size)
 
     print(f"Episode {episode + 1}/{episodes} completed with total reward: {total_reward}")
+    
+    if (episode + 1) % save_interval == 0:
+        agent.save_model(f'dqn_model_episode_{episode + 1}')
+    
+agent.save_model('dqn_model_final')

@@ -109,3 +109,17 @@ class DQNAgent():
 
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
+            
+    def save_model(self, filename='dqn_model'):
+        """
+        Save the neural network model to the specified file.
+        
+        Args:
+            filename (str): The name of the file to save the model to.
+        """
+        directory = 'saves'
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        filepath = os.path.join(directory, f"{filename}.h5")
+        self.model.save(filepath)
+        print(f"Model saved to {filepath}")
