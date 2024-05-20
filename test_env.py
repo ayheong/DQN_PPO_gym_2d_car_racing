@@ -8,9 +8,10 @@ action_size = env.action_space.shape[0]
 
 agent = DQNAgent(state_size=state_size, action_size=action_size)
 
-episodes = 500  
+episodes = 10  
 batch_size = 32
-save_interval = 100
+save_interval = 5
+frames_per_action = 5
 
 for episode in range(episodes):
     state, _ = env.reset()
@@ -22,13 +23,18 @@ for episode in range(episodes):
 
     while not (terminated or truncated):
         action = agent.act(state)
-        next_state, reward, terminated, truncated, _ = env.step(action)
-        next_state = np.array(next_state)
+        
+        for _ in range(frames_per_action):
+            next_state, reward, terminated, truncated, _ = env.step(action)
+            next_state = np.array(next_state)
 
-        total_reward += reward
+            total_reward += reward
 
-        episode_memory.append((state, action, reward, next_state, terminated, truncated))
-        state = next_state
+            episode_memory.append((state, action, reward, next_state, terminated, truncated))
+            state = next_state
+            
+            if terminated or truncated:
+                break
 
     for experience in episode_memory:
         state, action, reward, next_state, terminated, truncated = experience
