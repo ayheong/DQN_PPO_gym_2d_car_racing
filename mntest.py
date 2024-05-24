@@ -1,3 +1,4 @@
+# use only for testing CNN 
 import tensorflow as tf
 from tensorflow.keras.datasets import fashion_mnist
 from tensorflow.keras.utils import to_categorical
