@@ -2,6 +2,7 @@ import gymnasium as gym
 import numpy as np
 from dqn_agent import DQNAgent
 from ppo_agent import PPOAgent
+import tensorflow as tf
 
 gpus = tf.config.experimental.list_physical_devices('GPU')
 if gpus:
