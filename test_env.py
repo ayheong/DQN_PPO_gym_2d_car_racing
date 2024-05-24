@@ -3,6 +3,17 @@ import numpy as np
 from dqn_agent import DQNAgent
 from ppo_agent import PPOAgent
 
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    try:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+        tf.config.experimental.set_visible_devices(gpus[0], 'GPU')
+    except RuntimeError as e:
+        pass 
+else:
+    pass
+
 PPO = True
 DQN = False 
 RENDER = True
