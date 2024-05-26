@@ -1,137 +1,117 @@
-import numpy as np
+# ppo_agent.py
 import tensorflow as tf
+from tensorflow.keras import layers
+import numpy as np
 import os
-
-from tensorflow import keras
-from keras import Model
-from keras.layers import Input, Conv2D, Flatten, Dense
-from keras.optimizers import Adam
-import gymnasium as gym
 from replay_buffer import ReplayBuffer
 
-
-
 class PPOAgent:
-    def __init__(self, state_size, action_size, buffer_size=10000, gamma=0.99, epsilon=0.2, learning_rate=0.001):
+    def __init__(self, state_size, action_size, lr=0.0001, gamma=0.99, clip_ratio=0.1, epochs=10, batch_size=64, buffer_size=10000):
         self.state_size = state_size
         self.action_size = action_size
-        self.memory = ReplayBuffer(max_size=buffer_size)
         self.gamma = gamma
-        self.epsilon = epsilon
-        self.learning_rate = learning_rate
-        self.policy_model, self.value_model = self.build_model()
+        self.clip_ratio = clip_ratio
+        self.epochs = epochs
+        self.batch_size = batch_size
+
+        self.actor = self.build_actor()
+        self.critic = self.build_critic()
+        self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+        self.critic_optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+        self.memory = ReplayBuffer(max_size=buffer_size)
+
+    def build_actor(self):
+        model = tf.keras.Sequential([
+            layers.Input(shape=self.state_size),
+            layers.Conv2D(32, (8, 8), strides=(4, 4), activation='relu'),
+            layers.Conv2D(64, (4, 4), strides=(2, 2), activation='relu'),
+            layers.Conv2D(64, (3, 3), strides=(1, 1), activation='relu'),
+            layers.Flatten(),
+            layers.Dense(512, activation='relu'),
+            layers.Dense(self.action_size, activation='linear')
+        ])
+        return model
+
+    def build_critic(self):
+        model = tf.keras.Sequential([
+            layers.Input(shape=self.state_size),
+            layers.Conv2D(32, (8, 8), strides=(4, 4), activation='relu'),
+            layers.Conv2D(64, (4, 4), strides=(2, 2), activation='relu'),
+            layers.Conv2D(64, (3, 3), strides=(1, 1), activation='relu'),
+            layers.Flatten(),
+            layers.Dense(512, activation='relu'),
+            layers.Dense(1, activation='linear')
+        ])
+        return model
+
+    def act(self, state, training: bool = True) -> np.ndarray:
+        state = np.expand_dims(state, axis=0)
+        action = self.actor(state)
+        if training:
+            noise = np.random.normal(0, 0.2, size=self.action_size)
+            action = action + noise
+        action = action[0].numpy()
+        return action
         
+     
+
     def memorize(self, state, action, reward, next_state, terminated, truncated):
         self.memory.add(state, action, reward, next_state, terminated, truncated)
 
-    def act(self, state):
-        if np.random.rand() <= self.epsilon:  # Explore
-            wheel = np.random.normal(0, 0.5)
-            wheel = np.clip(wheel, -1, 1)
-            gas = np.random.beta(2, 1)
-            break_ = np.random.beta(1, 2)
-            return np.array([wheel, gas, break_])  # Random choice within action bounds
-        
-        state = np.expand_dims(state, axis=0)
-        action_mean = self.policy_model.predict(state, verbose=0)[0]  # Exploit, verbose=0 to stop printing log 
-        
-        # Sample from a Gaussian distribution centered on the predicted action mean
-        action = action_mean + np.random.normal(0, 1, size=self.action_size)
-        return np.clip(action, -1.0, 1.0)
-
-    def build_model(self):
-        input_layer = Input(shape=self.state_size)
-        
-        x = Conv2D(32, (8, 8), strides=(4, 4), activation='relu')(input_layer)
-        x = Conv2D(64, (4, 4), strides=(2, 2), activation='relu')(x)
-        x = Conv2D(64, (3, 3), strides=(1, 1), activation='relu')(x)
-        x = Flatten()(x)
-        x = Dense(512, activation='relu')(x)
-
-        policy_output = Dense(self.action_size, activation='softmax', name='policy_output')(x)
-        policy_model = Model(inputs=input_layer, outputs=policy_output)
-        
-        value_output = Dense(1, name='value_output')(x)
-        value_model = Model(inputs=input_layer, outputs=value_output)
-        
-        policy_optimizer = Adam(learning_rate=self.learning_rate)
-        value_optimizer = Adam(learning_rate=self.learning_rate)
-    
-    
-        policy_model.compile(optimizer=policy_optimizer, loss=self.ppo_loss)
-        value_model.compile(optimizer=value_optimizer, loss='mse')
-        
-        return policy_model, value_model
-    
-    def ppo_loss(self, y_true, y_pred):
-        y_true = tf.reshape(y_true, (-1, 1))
-    
-        # Reshape y_pred
-        y_pred = tf.reshape(y_pred, (-1,))
-        
-        # Compute the mean squared error loss
-        # mse_loss = tf.reduce_mean(tf.square(y_true_reshaped - y_pred_reshaped))
-        
-        # return mse_loss
-        advantage = tf.expand_dims(y_true[0], axis=-1)
-        old_policy = tf.expand_dims(y_true[1:], axis=-1)
-
-        action_prob = y_pred
-        
-        ratio = action_prob / (old_policy + 1e-10)
-        clipped_ratio = tf.clip_by_value(ratio, 1 - self.epsilon, 1 + self.epsilon)
-        surrogate_loss = tf.minimum(ratio * advantage, clipped_ratio * advantage)
-        
-        return -tf.reduce_mean(surrogate_loss)
-    
-    def train_model(self, batch_size):
-        # if len(self.memory) < batch_size:
-        #     return
-        states, actions, rewards, next_states, dones, _ = self.memory.sample(batch_size)
-        advantages = self.compute_advantages(states, rewards, next_states, dones)
-        
-        old_probs = self.policy_model.predict(states)
-        
-        old_probs = tf.reduce_sum(actions * old_probs, axis=1)
-        y_true = np.hstack([advantages, old_probs])
-        
-        for _ in range(batch_size):
-            self.policy_model.train_on_batch(states, y_true)
-        
-        value_targets = rewards + self.gamma * (1 - dones) * self.value_model.predict(next_states)
-        self.value_model.train_on_batch(states, value_targets)
-    
-    def compute_advantages(self, states, rewards, next_states, dones):
-        values = self.value_model.predict(states)
-        next_values = self.value_model.predict(next_states)
-        
-        advantages = np.zeros_like(rewards, dtype=np.float32)
-        last_advantage = 0.0
-        
-        for t in reversed(range(len(rewards))):
-            td_error = rewards[t] + self.gamma * (1 - dones[t]) * next_values[t] - values[t]
-            advantages[t] = last_advantage = td_error + self.gamma * 0.95 * (1 - dones[t]) * last_advantage
-        
+    def compute_advantages(self, rewards, values, next_values, dones):
+        advantages = []
+        gae = 0
+        for i in reversed(range(len(rewards))):
+            delta = rewards[i] + self.gamma * next_values[i] * (1 - dones[i]) - values[i]
+            gae = delta + self.gamma * 0.95 * (1 - dones[i]) * gae
+            advantages.insert(0, gae)
         return advantages
-    
-    def is_out_of_track(self, img_rgb):
-        # Check if the car is out of the track
-        # Define the off-track color range (e.g., green areas)
-        center_x = img_rgb.shape[1] // 2
-        center_y = img_rgb.shape[0] // 2
-        center_pixel = img_rgb[center_y, center_x]
-        green_threshold = np.array([102, 230, 102])  
-        gray_threshold = np.array([102, 102, 102])
-        if np.array_equal(center_pixel, gray_threshold):
-            return True  # Car is off track
-        else:
-            return False
 
-    def save_model(self, filename='ppo_model.kearas'):
+    def train_model(self):
+        if len(self.memory) < self.batch_size:
+            return
+
+        states, actions, rewards, next_states, dones, truncated = self.memory.sample(self.batch_size)
+        states = np.array(states)
+        next_states = np.array(next_states)
+        
+        values = self.critic(states)
+        next_values = self.critic(next_states)
+        advantages = self.compute_advantages(rewards, values, next_values, dones)
+        advantages = np.array(advantages)
+
+        for _ in range(self.epochs):
+            with tf.GradientTape() as tape1, tf.GradientTape() as tape2:
+                pred_actions = self.actor(states)
+                
+                pred_actions = tf.maximum(pred_actions, 0)
+                
+                pred_values = self.critic(states)
+                ratios = tf.exp(tf.reduce_sum(pred_actions * actions, axis=1) - tf.reduce_sum(actions, axis=1))
+                clipped_ratios = tf.clip_by_value(ratios, 1 - self.clip_ratio, 1 + self.clip_ratio)
+                loss_actor = -tf.reduce_mean(tf.minimum(ratios * advantages, clipped_ratios * advantages))
+                loss_critic = tf.reduce_mean((rewards + self.gamma * next_values - pred_values) ** 2)
+
+            grads_actor = tape1.gradient(loss_actor, self.actor.trainable_variables)
+            grads_critic = tape2.gradient(loss_critic, self.critic.trainable_variables)
+            self.actor_optimizer.apply_gradients(zip(grads_actor, self.actor.trainable_variables))
+            self.critic_optimizer.apply_gradients(zip(grads_critic, self.critic.trainable_variables))
+
+    def save_model(self, filename='ppo_model'):
         directory = 'saves'
         if not os.path.exists(directory):
             os.makedirs(directory)
-        filepath = os.path.join(directory, f"{filename}.h5")
-        self.policy_model.save(filepath)
+        filepath = os.path.join(directory, f"{filename}")
         print(f"Model saved to {filepath}")
+        self.actor.save(f'{filepath}_actor.h5')
+        self.critic.save(f'{filepath}_critic.h5')
 
+    def load_model(self, filename='ppo_model_final'):
+        directory = 'saves'
+        filepath = os.path.join(directory, f"{filename}")
+        self.actor = tf.keras.models.load_model(f'{filepath}_actor.h5')
+        self.critic = tf.keras.models.load_model(f'{filepath}_critic.h5')
+
+    def is_out_of_track(self, state):
+        out_sum = (state[75, 35:48, 1][:2] > 200).sum() + (state[75, 35:48, 1][-2:] > 200).sum()
+        return out_sum == 4
