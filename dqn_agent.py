@@ -32,15 +32,36 @@ class DQNAgent():
         self.model = self.build_model()
         
     def memorize(self, state, action, reward, next_state, terminated, truncated):
+        """
+        Store a transition in the replay buffer.
+
+        Args:
+            See ReplayBuffer.add()
+        """
         self.memory.add(state, action, reward, next_state, terminated, truncated)
         
     def act(self, state):
+        """
+        Select an action based on the current policy.
+        
+        Args:
+            state (numpy array): The current state.
+        
+        Returns:
+            numpy array: The action selected.
+        """
         if np.random.rand() <= self.epsilon:  # Explore
             return np.random.uniform(-1.0, 1.0, self.action_size)  # Random Choice
         q_values = self.model.predict(state[np.newaxis, ...])  # Exploit
-        return np.clip(q_values[0], -1.0, 1.0)  
+        return np.clip(q_values[0], -1.0, 1.0)  # 
     
     def build_model(self):
+        """
+        Build the neural network model for approximating Q-values.
+        
+        Returns:
+            model (Sequential): The compiled Keras model.
+        """
         model = Sequential()
         model.add(Input(shape=(96, 96, 3)))
         model.add(Conv2D(32, kernel_size=(3,3), input_dim=self.state_size, activation='relu'))
