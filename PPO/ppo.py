@@ -14,7 +14,7 @@ gym.logger.set_level(40)
 
 class Env:
     def __init__(self, env, sample_f=10):
-        self.env = gym.make(env, verbose=0)
+        self.env = gym.make(env, render_mode = 'human')
         self.sample_f = sample_f
 
     def reset(self):
@@ -321,7 +321,7 @@ if __name__ == "__main__":
 
     if args.mode == "train":
         print("... start training ...")
-        env = Env('CarRacing-v2', sample_f=1)
+        env = Env('CarRacing-v2', sample_f=10)
         agent = Agent(state_dim=3, action_dim=3)
         if args.pretrain:
             agent.load_model()

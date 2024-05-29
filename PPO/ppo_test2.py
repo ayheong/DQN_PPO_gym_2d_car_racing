@@ -1,5 +1,7 @@
 import gymnasium as gym
+import argparse
 import time
+from tqdm import tqdm
 import numpy as np
 
 import torch
@@ -7,12 +9,12 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.distributions.beta import Beta
 
-gym.logger.set_level(10)
+gym.logger.set_level(40)
 
 
 class Env:
-    def __init__(self, env, sample_f):
-        self.env = gym.make(env, render_mode = 'human')
+    def __init__(self, env, sample_f=10):
+        self.env = gym.make(env, verbose=0)
         self.sample_f = sample_f
 
     def reset(self):
@@ -26,12 +28,12 @@ class Env:
     def step(self, action):
         total_reward = 0
         for _ in range(self.sample_f):
-            state, reward, terminated, truncated, _ = self.env.step(action)
+            state, reward, done, done_, _ = self.env.step(action)
 
             total_reward += reward
             self.update_flag(reward)
 
-            if terminated or truncated or np.mean(self.flag) <= -0.1:
+            if done or done_ or np.mean(self.flag) <= -0.1:
                 done = True
                 break
         state = state[:84, 6:90]
@@ -42,37 +44,46 @@ class Env:
         self.flag.append(r)
         assert len(self.flag) == 100
 
+
 class Model(nn.Module):
     def __init__(self, obs_dim, act_dim, save_dir="./ppo_model"):
         super(Model, self).__init__()
         self.cnn_base = nn.Sequential(  
-            nn.Conv2d(obs_dim, 32, kernel_size=8, stride=4),
+            nn.Conv2d(obs_dim, 8, kernel_size=4, stride=2),
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2),
-            nn.ReLU(), 
-            nn.Conv2d(64, 64, kernel_size=3, stride=1),  
-            nn.ReLU(),  
-            nn.Flatten(), 
-        )
-        self.v = nn.Sequential(nn.Linear(3136, 512), nn.ReLU(), nn.Linear(512, 1))
-        self.fc = nn.Sequential(nn.Linear(3136, 512), nn.ReLU())
-        self.alpha_head = nn.Sequential(nn.Linear(512, act_dim), nn.Softplus())
-        self.beta_head = nn.Sequential(nn.Linear(512, act_dim),nn.Softplus())
+            nn.Conv2d(8, 16, kernel_size=3, stride=2),  
+            nn.ReLU(),  # activation
+            nn.Conv2d(16, 32, kernel_size=3, stride=2), 
+            nn.ReLU(),  # activation
+            nn.Conv2d(32, 64, kernel_size=3, stride=2),  
+            nn.ReLU(),  # activation
+            nn.Conv2d(64, 128, kernel_size=3, stride=1),  
+            nn.ReLU(),  # activation
+            nn.Conv2d(128, 256, kernel_size=2, stride=1),  
+            nn.ReLU(),  # activation
+            nn.Flatten(),
+        )  
+        self.v = nn.Sequential(nn.Linear(256, 100), nn.ReLU(), nn.Linear(100, 1))
+        self.fc = nn.Sequential(nn.Linear(256, 100), nn.ReLU())
+        self.alpha_head = nn.Sequential(nn.Linear(100, act_dim), nn.Softplus())
+        self.beta_head = nn.Sequential(nn.Linear(100, act_dim), nn.Softplus())
+        self.apply(self._weights_init)
 
-        self.apply(self.weights)
         self.ckpt_file = save_dir + ".pth"
 
     @staticmethod
-    def weights(m):
+    def _weights_init(m):
         if isinstance(m, nn.Conv2d):
             nn.init.xavier_uniform_(m.weight, gain=nn.init.calculate_gain('relu'))
             nn.init.constant_(m.bias, 0.1)
 
     def forward(self, x):
         x = self.cnn_base(x)
+        
         v = self.v(x)
         x = self.fc(x)
         alpha = self.alpha_head(x) + 1
+        
         beta = self.beta_head(x) + 1
         return (alpha, beta), v
 
@@ -82,9 +93,15 @@ class Model(nn.Module):
     def load_ckpt(self):
         self.load_state_dict(torch.load(self.ckpt_file))
 
+
 class Memory:
     def __init__(self):
-        self.states, self.actions, self.probs, self.rewards, self.next_states, self.values = [], [], [], [], [], []
+        self.states = []
+        self.actions = []
+        self.probs = []
+        self.rewards = []
+        self.next_states = []
+        self.values = []
 
     def store(self, state, action, prob, reward, next_state, value):
         self.states.append(state)
@@ -95,7 +112,12 @@ class Memory:
         self.values.append(value)
 
     def clear(self):
-        self.states, self.actions, self.probs, self.rewards, self.next_states, self.values = [], [], [], [], [], []
+        self.states = []
+        self.actions = []
+        self.probs = []
+        self.rewards = []
+        self.next_states = []
+        self.values = []
 
     def generate_batch(self, batch_size):
         length = len(self.states)
@@ -106,21 +128,26 @@ class Memory:
 
         return self.states, self.actions, self.probs, self.rewards, self.next_states, self.values, batchs
 
+
 class Agent:
     def __init__(self, state_dim, action_dim, gamma=0.99, lamda=0.95, clip=0.1,
-                 learning_rate=3e-4, batch_size=128, save_dir='./ppo_model',
+                 learning_rate=0.001, batch_size=128, save_dir='./ppo_model',
                  epochs=8, device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
+
+        self.model = Model(state_dim, action_dim, save_dir).to(device)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
 
         self.gamma = gamma
         self.lamda = lamda
         self.clip = clip
+
         self.batch_size = batch_size
         self.epochs = epochs
+
         self.buffer = Memory()
+
         self.device = device
-        self.model = Model(state_dim, action_dim, save_dir).to(device)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
-        
+
     def select_action(self, state):
         state = torch.tensor(state, dtype=torch.float).to(self.device).unsqueeze(0)
         with torch.no_grad():
@@ -131,6 +158,7 @@ class Agent:
         action = dist.sample()
         logp = dist.log_prob(action).sum(dim=1)
        
+
         action = action.squeeze().cpu().numpy()
         logp = logp.item()
 
@@ -172,7 +200,7 @@ class Agent:
                 discount *= self.gamma*self.lamda
             advantages[i] = a_t
 
-        v_ = advantages + v  
+        v_ = advantages+v  # returns
 
         advantages = advantages.view(-1, 1)
         v_ = v_.view(-1, 1)
@@ -191,10 +219,10 @@ class Agent:
 
                 critic_loss = ((self.model(s[index])[1] - v_[index]) ** 2).mean()  # minimize diff between critics
 
-                loss = actor_loss + critic_loss
+                total_loss = actor_loss + critic_loss
 
                 self.optimizer.zero_grad()
-                loss.backward()
+                total_loss.backward()
                 self.optimizer.step()
 
         self.buffer.clear()
