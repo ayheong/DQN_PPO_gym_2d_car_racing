@@ -18,20 +18,19 @@ class WrapperEnv:
         self.sample_f = sample_f
 
     def reset(self):
-        img_rgb = self.env.reset()
+        img_rgb, _ = self.env.reset()
         self.flag = [0] * 100
         return np.moveaxis(img_rgb, -1, 0) / 255.0
 
     def step(self, action):
         total_reward = 0
-        self.env.render()
         for i in range(self.sample_f):
-            img_rgb, reward, done, info = self.env.step(action)
+            img_rgb, reward, done, done_, _ = self.env.step(action)
 
             total_reward += reward
             self.update_flag(reward)
 
-            if done or np.mean(self.flag) <= -0.1:
+            if done or done_ or np.mean(self.flag) <= -0.1:
                 done = True
                 break
 
@@ -317,20 +316,20 @@ def ppo_test(env, agent, n_episode=500):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="arg parser")
-    parser.add_argument('-m', '--mode', type=str, default="test", required=False, help="train/test?")
+    parser.add_argument('-m', '--mode', type=str, default="train", required=False, help="train/test?")
     parser.add_argument('-p', '--pretrain', action="store_true", help="pretrained model")
     args = parser.parse_args()
 
     if args.mode == "train":
         print("... start training ...")
-        env = WrapperEnv('CarRacing-v0', sample_f=1)
+        env = WrapperEnv('CarRacing-v2', sample_f=1)
         agent = Agent(state_dim=3, action_dim=3)
         if args.pretrain:
             agent.load_model()
         score = ppo_train(env, agent, 30000, 2000)
     elif args.mode == "test":
         print("... start testing ...")
-        env = WrapperEnv('CarRacing-v0', 1)
+        env = WrapperEnv('CarRacing-v2', 1)
         agent = Agent(state_dim=3, action_dim=3, save_dir='./ppo_model_demo')
         agent.load_model()
         scores = ppo_test(env, agent, n_episode=100)
