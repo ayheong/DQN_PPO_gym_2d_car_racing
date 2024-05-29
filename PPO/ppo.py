@@ -12,7 +12,7 @@ from torch.distributions.beta import Beta
 gym.logger.set_level(40)
 
 
-class WrapperEnv:
+class Env:
     def __init__(self, env, sample_f=10):
         self.env = gym.make(env, verbose=0)
         self.sample_f = sample_f
@@ -43,7 +43,6 @@ class WrapperEnv:
 
 
 class Model(nn.Module):
-
     def __init__(self, obs_dim, act_dim, save_dir="./ppo_model"):
         super(Model, self).__init__()
         self.cnn_base = nn.Sequential(  # input shape (3, 96, 96)
@@ -77,6 +76,8 @@ class Model(nn.Module):
 
     def forward(self, x):
         x = self.cnn_base(x)
+        
+        
         v = self.v(x)
         x = self.fc(x)
         alpha = self.alpha_head(x) + 1
@@ -150,12 +151,11 @@ class Agent:
         with torch.no_grad():
             alpha, beta = self.model(state)[0]
             value = self.model(state)[1]
-
         dist = Beta(alpha, beta)
 
         action = dist.sample()
         logp = dist.log_prob(action).sum(dim=1)
-
+       
         action = action.squeeze().cpu().numpy()
         logp = logp.item()
 
@@ -237,7 +237,6 @@ def ppo_train(env, agent, n_episode=1000, update_step=2000):
         total_reward = 0
 
         state = env.reset()
-
         while True:
             action, logp, value = agent.select_action(state)
             action_ = action * np.array([2., 1., 1.]) + np.array([-1., 0., 0.])
@@ -322,14 +321,14 @@ if __name__ == "__main__":
 
     if args.mode == "train":
         print("... start training ...")
-        env = WrapperEnv('CarRacing-v2', sample_f=1)
+        env = Env('CarRacing-v2', sample_f=1)
         agent = Agent(state_dim=3, action_dim=3)
         if args.pretrain:
             agent.load_model()
         score = ppo_train(env, agent, 30000, 2000)
     elif args.mode == "test":
         print("... start testing ...")
-        env = WrapperEnv('CarRacing-v2', 1)
+        env = Env('CarRacing-v2', 1)
         agent = Agent(state_dim=3, action_dim=3, save_dir='./ppo_model_demo')
         agent.load_model()
         scores = ppo_test(env, agent, n_episode=100)
