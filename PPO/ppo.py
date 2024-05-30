@@ -1,5 +1,5 @@
-from PPO.env import Env
-from PPO.buffer import Memory
+from env import Env
+from buffer import Memory
 import numpy as np
 
 import torch
@@ -91,16 +91,16 @@ class Agent:
         states, actions, probs, rewards, next_states, values, batchs = self.buffer.generate_batch(self.batch_size)
         states = np.array(states)
         actions = np.array(actions)
-        old_logp = np.array(old_logp)
+        old_logp = np.array(probs)
         rewards = np.array(rewards)
-        next_s = np.array(next_s)
+        next_s = np.array(next_states)
         values = np.array(values)
         
         s = torch.tensor(states, dtype=torch.float).to(self.device)
         a = torch.tensor(actions, dtype=torch.float).to(self.device)
-        old_logp = torch.tensor(probs, dtype=torch.float).to(self.device)
+        old_logp = torch.tensor(old_logp, dtype=torch.float).to(self.device)
         r = torch.tensor(rewards, dtype=torch.float).to(self.device)
-        next_s = torch.tensor(next_states, dtype=torch.float).to(self.device)
+        next_s = torch.tensor(next_s, dtype=torch.float).to(self.device)
         v = torch.tensor(values, dtype=torch.float).to(self.device)
         advantages = torch.zeros_like(v)
 
@@ -220,13 +220,13 @@ if __name__ == "__main__":
     train = True
     if train:
         print("... start training ...")
-        env = Env('CarRacing-v2', action_stack=4)
+        env = Env()
         agent = Agent(state_dim=3, action_dim=3)
         score = ppo_train(env, agent, 30000, 2000)
 
     else:
         print("... start testing ...")
-        env = Env('CarRacing-v2', 1)
+        env = Env()
         agent = Agent(state_dim=3, action_dim=3, save_dir='./ppo_model_demo')
         agent.load_model()
         scores = ppo_test(env, agent, n_episode=100)
