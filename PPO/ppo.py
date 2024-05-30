@@ -1,14 +1,11 @@
-from env import Env
-from memory import Memory
-import time
+from PPO.env import Env
+from PPO.buffer import Memory
 import numpy as np
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions.beta import Beta
-
-
 
 class Model(nn.Module):
     def __init__(self, obs_dim, act_dim, save_dir="./ppo_model"):
@@ -50,6 +47,8 @@ class Model(nn.Module):
     def load_ckpt(self):
         self.load_state_dict(torch.load(self.ckpt_file))
 
+
+
 class Agent:
     def __init__(self, state_dim, action_dim, gamma=0.99, lamda=0.95, clip=0.1,
                  learning_rate=3e-4, batch_size=128, save_dir='./ppo_model',
@@ -71,17 +70,14 @@ class Agent:
             alpha, beta = self.model(state)[0]
             value = self.model(state)[1]
         dist = Beta(alpha, beta)
-
         action = dist.sample()
         logp = dist.log_prob(action).sum(dim=1)
-       
         action = action.squeeze().cpu().numpy()
         logp = logp.item()
-
         return action, logp, value
 
-    def store(self, tranjectory):
-        self.buffer.store(*tranjectory)
+    def memory(self, tranjectory):
+        self.buffer.memory(*tranjectory)
 
     def save_model(self):
         print("... save model ...")
@@ -164,7 +160,7 @@ def ppo_train(env, agent, n_episode=1000, update_step=2000):
             total_steps += 1
             episode_steps += 1
             total_reward += reward
-            agent.store((state, action, logp, reward, next_state, value))
+            agent.memory((state, action, logp, reward, next_state, value))
 
             if total_steps % update_step == 0:
                 print("...updating...")
@@ -173,7 +169,6 @@ def ppo_train(env, agent, n_episode=1000, update_step=2000):
 
             if done:
                 break
-
             state = next_state
 
         scores.append(total_reward)
