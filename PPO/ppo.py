@@ -94,7 +94,6 @@ class Agent:
         old_logp = np.array(probs)
         rewards = np.array(rewards)
         next_s = np.array(next_states)
-        values = np.array(values)
         
         s = torch.tensor(states, dtype=torch.float).to(self.device)
         a = torch.tensor(actions, dtype=torch.float).to(self.device)
@@ -183,7 +182,7 @@ def ppo_train(env, agent, n_episode, update_step):
 
     return scores
 
-def ppo_test(env, agent, n_episode=500):
+def ppo_test(env, agent, n_episode):
     scores = []
     total_steps = 0
     learn_steps = 0
@@ -198,11 +197,11 @@ def ppo_test(env, agent, n_episode=500):
         while True:
             action, _, _ = agent.select_action(state)
             action_ = action * np.array([2., 1., 1.]) + np.array([-1., 0., 0.])
-            next_state, reward, done, done_, _ = env.step(action_)
+            next_state, reward, done = env.step(action_)
             total_steps += 1
             episode_steps += 1
             total_reward += reward
-            if done or done_:
+            if done:
                 break
             state = next_state
 
@@ -217,7 +216,7 @@ def ppo_test(env, agent, n_episode=500):
 
 
 if __name__ == "__main__":
-    train = True
+    train = False
     if train:
         print("... start training ...")
         env = Env()
@@ -226,10 +225,10 @@ if __name__ == "__main__":
 
     else:
         print("... start testing ...")
-        env = Env()
-        agent = Agent(state_dim=3, action_dim=3, save_dir='./ppo_model_demo')
+        env = Env(render=True)
+        agent = Agent(state_dim=3, action_dim=3, save_dir='./ppo_model')
         agent.load_model()
-        scores = ppo_test(env, agent, n_episode=100)
+        scores = ppo_test(env, agent, n_episode=10)
         print(f"scores mean:{np.mean(scores)}, score std:{np.std(scores)}")
         np.save("ppo_car_racing_scores_100", scores)
     
