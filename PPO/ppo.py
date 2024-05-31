@@ -222,7 +222,7 @@ if __name__ == "__main__":
         print("... start training ...")
         env = Env()
         agent = Agent(state_dim=3, action_dim=3)
-        score = ppo_train(env, agent, 30000, 2000)
+        score = ppo_train(env, agent, 30000, 500)
 
     else:
         print("... start testing ...")
