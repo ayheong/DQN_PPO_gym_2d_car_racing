@@ -12,7 +12,7 @@ class Env:
         state, _ = self.env.reset()
         for _ in range (30):
             state, _, _, _ , _ = self.env.step(np.array([0, 0 ,0]))
-        self.reward_list = [0] * 100
+        self.reward_list = [0] * 10
         state = state[:84, 6:90]
         return np.moveaxis(state, -1, 0) / 255.0
     
@@ -32,4 +32,4 @@ class Env:
     def update_reward(self, r):
         self.reward_list.pop(0)
         self.reward_list.append(r)
-        assert len(self.reward_list) == 100
+        assert len(self.reward_list) == 10

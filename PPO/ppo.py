@@ -140,7 +140,7 @@ class Agent:
         self.buffer.clear()
 
 
-def ppo_train(env, agent, n_episode=1000, update_step=2000):
+def ppo_train(env, agent, n_episode, update_step):
     scores = []
     total_steps = 0
     learn_steps = 0
@@ -172,7 +172,7 @@ def ppo_train(env, agent, n_episode=1000, update_step=2000):
             state = next_state
 
         scores.append(total_reward)
-        avg_score = np.mean(scores[-100:])
+        avg_score = np.mean(scores[-10:]) # take the average of the last 10 elements
 
         if avg_score > best_score:
             agent.save_model()
@@ -207,7 +207,7 @@ def ppo_test(env, agent, n_episode=500):
             state = next_state
 
         scores.append(total_reward)
-        avg_score = np.mean(scores[-100:])
+        avg_score = np.mean(scores[-10:])
         if avg_score > best_score:
             best_score = avg_score
 
@@ -222,7 +222,7 @@ if __name__ == "__main__":
         print("... start training ...")
         env = Env()
         agent = Agent(state_dim=3, action_dim=3)
-        score = ppo_train(env, agent, 30000, 500)
+        score = ppo_train(env, agent, n_episode=30000, update_step=500)
 
     else:
         print("... start testing ...")
