@@ -1,7 +1,7 @@
 from env import Env
 from buffer import Memory
 import numpy as np
-
+import argparse 
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -44,10 +44,8 @@ class Model(nn.Module):
     def save_ckpt(self):
         torch.save(self.state_dict(), self.ckpt_file)
 
-    def load_ckpt(self):
-        self.load_state_dict(torch.load(self.ckpt_file))
-
-
+    def load_ckpt(self, device):
+        self.load_state_dict(torch.load(self.ckpt_file, map_location=device))
 
 class Agent:
     def __init__(self, state_dim, action_dim, gamma=0.99, lamda=0.95, clip=0.1,
@@ -85,7 +83,7 @@ class Agent:
 
     def load_model(self):
         print("... load model ...")
-        self.model.load_ckpt()
+        self.model.load_ckpt(self.device)
 
     def learn(self):
         states, actions, probs, rewards, next_states, values, batchs = self.buffer.generate_batch(self.batch_size)
@@ -216,7 +214,12 @@ def ppo_test(env, agent, n_episode):
 
 
 if __name__ == "__main__":
-    train = False
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument('-t', '--test', help='testing model', action='store_true', required=False)
+    args = parser.parse_args()
+    train = True
+    if args.test:
+        train = False
     if train:
         print("... start training ...")
         env = Env()
