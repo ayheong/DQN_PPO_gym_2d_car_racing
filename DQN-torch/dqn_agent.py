@@ -25,13 +25,16 @@ class DQNAgent:
         
     def act(self, state):
         if np.random.rand() <= self.epsilon:
-            return np.random.uniform(-1.0, 1.0, self.action_size)
-        state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
-        self.model.eval()
-        with torch.no_grad():
-            q_values = self.model(state)
-        self.model.train()
-        return np.clip(q_values.cpu().numpy()[0], -1.0, 1.0)
+            # Generate a random action with the first value between -1 and 1, and the other two between 0 and 1
+            action = np.array([np.random.uniform(-1.0, 1.0), np.random.uniform(0.0, 1.0), np.random.uniform(0.0, 1.0)])
+        else:
+            state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+            self.model.eval()
+            with torch.no_grad():
+                q_values = self.model(state)
+            self.model.train()
+            action = q_values.cpu().numpy()[0]
+        return action
     
     def build_model(self):
         class QNetwork(nn.Module):

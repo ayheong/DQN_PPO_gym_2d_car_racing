@@ -8,7 +8,7 @@ gym.logger.set_level(40)
 
 
 class Env:
-    def __init__(self, env, sample_f=10):
+    def __init__(self, env, sample_f=4):
         self.env = gym.make(env, verbose=0, render_mode='human')
         self.sample_f = sample_f
 
@@ -55,10 +55,9 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64):
         while True:
             action = agent.act(state)
             print(f"Action taken: {action}")  
-            move = action * np.array([2., 1., 1.]) + np.array([-1., 0., 0.])
-            next_state, reward, done = env.step(move)
+            next_state, reward, done = env.step(action)
             
-            # gas and no brake
+            # Gas and no brake
             if action[1] > 0 and action[2] == 0:
                 reward *= 1.5
 
@@ -91,7 +90,6 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64):
     return scores
 
 
-
 def dqn_test(env, agent, n_episode=500):
     scores = []
     total_steps = 0
@@ -107,8 +105,7 @@ def dqn_test(env, agent, n_episode=500):
 
         while True:
             action = agent.act(state)
-            action_ = action * np.array([2., 1., 1.]) + np.array([-1., 0., 0.])
-            next_state, reward, done = env.step(action_)
+            next_state, reward, done = env.step(action)
             total_steps += 1
             episode_steps += 1
             total_reward += reward
@@ -128,11 +125,12 @@ def dqn_test(env, agent, n_episode=500):
     return scores
 
 
+
 if __name__ == "__main__":
     train = True
     if train:
         print("... start training ...")
-        env = Env('CarRacing-v2', sample_f=10)  # Use the same sample_f as PPO
+        env = Env('CarRacing-v2', sample_f=4) 
         state_size = (3, 84, 84)
         action_size = 3
         agent = DQNAgent(state_size=state_size, action_size=action_size)
@@ -140,7 +138,7 @@ if __name__ == "__main__":
 
     else:
         print("... start testing ...")
-        env = Env('CarRacing-v2', sample_f=10)  # Use the same sample_f as PPO
+        env = Env('CarRacing-v2', sample_f=4)  
         state_size = (3, 84, 84)
         action_size = 3
         agent = DQNAgent(state_size=state_size, action_size=action_size)
