@@ -25,7 +25,7 @@ class Env:
         self.flag = [0] * 100
         state = state[:84, 6:90]
         return np.moveaxis(state, -1, 0) / 255.0
-    
+
     def step(self, action):
         total_reward = 0
         for _ in range(self.sample_f):
@@ -62,6 +62,7 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64):
             action_index = agent.act(state)
             action = ACTION_SPACE[action_index]
             # print(f"Action taken: {action_index}, {action}")
+            print(action_index, action)
             next_state, reward, done = env.step(action)
 
             total_steps += 1
@@ -92,6 +93,8 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64):
 
         print(f"Episode: {episode:04}, steps taken: {episode_steps:04}, total steps: {total_steps:07},",
               f"episode reward: {total_reward:1f}, avg reward: {avg_score:1f}, avg loss: {avg_loss:.6f}")
+        
+        print(f"Epsilon after episode {episode:04}: {agent.epsilon:.6f}")
 
     return scores
 
@@ -134,7 +137,7 @@ if __name__ == "__main__":
     train = True
     if train:
         print("... start training ...")
-        env = Env('CarRacing-v2', sample_f=10) 
+        env = Env('CarRacing-v2', sample_f=4) 
         state_size = (3, 84, 84)
         action_size = len(ACTION_SPACE)
         agent = DQNAgent(state_size=state_size, action_size=action_size)
@@ -142,7 +145,7 @@ if __name__ == "__main__":
 
     else:
         print("... start testing ...")
-        env = Env('CarRacing-v2', sample_f=10)  
+        env = Env('CarRacing-v2', sample_f=4)  
         state_size = (3, 84, 84)
         action_size = len(ACTION_SPACE)
         agent = DQNAgent(state_size=state_size, action_size=action_size)
