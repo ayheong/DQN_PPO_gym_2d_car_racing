@@ -1,49 +1,49 @@
 import gymnasium as gym
 import time
 import numpy as np
-
+import argparse
 from dqn_agent import DQNAgent 
 
 gym.logger.set_level(40)
 
 ACTION_SPACE = [
-    (-1, 1, 0.2), (0, 1, 0.2), (1, 1, 0.2),  # Action Space Structure
-    (-1, 1, 0), (0, 1, 0), (1, 1, 0),        # (Steering Wheel, Gas, Brake)
-    (-1, 0, 0.2), (0, 0, 0.2), (1, 0, 0.2),  # -1~1, 0~1, 0~1
-    (-1, 0, 0), (0, 0, 0), (1, 0, 0)
-]
+    (0, 0, 0), (0.6, 0, 0), (-0.6, 0, 0), (0, 0.2, 0), (0, 0, 0.8),  # (Steering Wheel, Gas, Brake)
+] # do nothing, left, right, gas, break 
 
 class Env:
-    def __init__(self, env, sample_f=10):
-        self.env = gym.make(env, verbose=0, render_mode='human')
-        self.sample_f = sample_f
+    def __init__(self, action_stack=1, render = False):
+        if render: 
+            self.env = gym.make('CarRacing-v2', render_mode = 'human')
+        else:
+            self.env = gym.make('CarRacing-v2')
+        self.action_stack = action_stack
 
     def reset(self):
         state, _ = self.env.reset()
         for _ in range(30):
             state, _, _, _, _ = self.env.step(np.array([0, 0, 0]))
-        self.flag = [0] * 100
+        self.reward_list = [0] * 100
         state = state[:84, 6:90]
         return np.moveaxis(state, -1, 0) / 255.0
 
     def step(self, action):
         total_reward = 0
-        for _ in range(self.sample_f):
+        for _ in range(self.action_stack):
             state, reward, done, done_, _ = self.env.step(action)
             
             total_reward += reward
-            self.update_flag(reward)
+            self.update_reward(reward)
 
-            if done or done_ or np.mean(self.flag) <= -0.1:
+            if done or done_ or np.mean(self.reward_list) <= -0.1:
                 done = True
                 break
         state = state[:84, 6:90]
         return np.moveaxis(state, -1, 0) / 255.0, total_reward, done
 
-    def update_flag(self, r):
-        self.flag.pop(0)
-        self.flag.append(r)
-        assert len(self.flag) == 100
+    def update_reward(self, r):
+        self.reward_list.pop(0)
+        self.reward_list.append(r)
+        assert len(self.reward_list) == 100
 
 def dqn_train(env, agent, n_episode=1000, batch_size=64):
     scores = []
@@ -61,8 +61,6 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64):
         while True:
             action_index = agent.act(state)
             action = ACTION_SPACE[action_index]
-            # print(f"Action taken: {action_index}, {action}")
-            print(action_index, action)
             next_state, reward, done = env.step(action)
 
             total_steps += 1
@@ -85,7 +83,7 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64):
 
         avg_loss = total_loss / loss_count if loss_count > 0 else 0
         scores.append(total_reward)
-        avg_score = np.mean(scores[-100:])
+        avg_score = np.mean(scores[-10:])
 
         if avg_score > best_score:
             agent.save_model()
@@ -112,7 +110,7 @@ def dqn_test(env, agent, n_episode=500):
         state = env.reset()
 
         while True:
-            action_index = agent.act(state, is_only_exploit=True)
+            action_index = agent.act(state)
             action = ACTION_SPACE[action_index]
             next_state, reward, done = env.step(action)
             total_steps += 1
@@ -134,10 +132,17 @@ def dqn_test(env, agent, n_episode=500):
     return scores
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument('-t', '--test', help='testing model', action='store_true', required=False)
+    args = parser.parse_args()
+
     train = True
+    if args.test:
+        train = False
+
     if train:
         print("... start training ...")
-        env = Env('CarRacing-v2', sample_f=4) 
+        env = Env() 
         state_size = (3, 84, 84)
         action_size = len(ACTION_SPACE)
         agent = DQNAgent(state_size=state_size, action_size=action_size)
@@ -145,7 +150,7 @@ if __name__ == "__main__":
 
     else:
         print("... start testing ...")
-        env = Env('CarRacing-v2', sample_f=4)  
+        env = Env(render=True)  
         state_size = (3, 84, 84)
         action_size = len(ACTION_SPACE)
         agent = DQNAgent(state_size=state_size, action_size=action_size)
