@@ -6,7 +6,7 @@ import os
 from replay_buffer import ReplayBuffer
 
 class DQNAgent:
-    def __init__(self, state_size, action_size, buffer_size=5000, gamma=0.99, epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.99, learning_rate=0.001):
+    def __init__(self, state_size, action_size, buffer_size=5000, gamma=0.95, epsilon=1.0, epsilon_min=0.1, epsilon_decay=0.9999, learning_rate=0.001, target_update=100):
         self.state_size = state_size
         self.action_size = action_size
         self.memory = ReplayBuffer(max_size=buffer_size)
@@ -17,16 +17,23 @@ class DQNAgent:
         self.learning_rate = learning_rate
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = self.build_model().to(self.device)
+        self.target_model = self.build_model().to(self.device)
+        self.update_target_model()
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
         self.criterion = nn.MSELoss()
-        
+        self.target_update = target_update
+        self.step_counter = 0
+
+    def update_target_model(self):
+        self.target_model.load_state_dict(self.model.state_dict())
+
     def memorize(self, state, action, reward, next_state, terminated, truncated):
         self.memory.add(state, action, reward, next_state, terminated, truncated)
-        
+
     def act(self, state):
         if np.random.rand() <= self.epsilon:
-            # Generate a random action with the first value between -1 and 1, and the other two between 0 and 1
-            action = np.array([np.random.uniform(-1.0, 1.0), np.random.uniform(0.0, 1.0), np.random.uniform(0.0, 1.0)])
+            action = np.array([np.random.uniform(-1.0, 1.0), np.random.beta(2.0, 1.0), np.random.beta(1.0, 2.0) * 0.5])
+            print('Random Action taken:', action)
         else:
             state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
             self.model.eval()
@@ -34,8 +41,9 @@ class DQNAgent:
                 q_values = self.model(state)
             self.model.train()
             action = q_values.cpu().numpy()[0]
+            print('Predicted Action taken:', action)
         return action
-    
+
     def build_model(self):
         class QNetwork(nn.Module):
             def __init__(self, input_shape, num_actions):
@@ -62,45 +70,64 @@ class DQNAgent:
                 x = x.view(x.size(0), -1)
                 x = torch.relu(self.fc1(x))
                 x = torch.relu(self.fc2(x))
-                x = torch.tanh(self.fc3(x))
-                return x
-        
+                output = self.fc3(x)
+                return output
+
         return QNetwork((3, 84, 84), self.action_size)
-    
+
     def train_model(self, batch_size):
         if len(self.memory) < batch_size:
             return
 
+        # Sample a batch from the replay buffer
         states, actions, rewards, next_states, terminateds, truncateds = self.memory.sample(batch_size)
-        
+
+        # Convert to tensors and move to the device
         states = torch.FloatTensor(states).to(self.device)
         next_states = torch.FloatTensor(next_states).to(self.device)
-        actions = torch.LongTensor(actions).to(self.device)
+        actions = torch.FloatTensor(actions).to(self.device)
         rewards = torch.FloatTensor(rewards).to(self.device)
         terminateds = torch.FloatTensor(terminateds).to(self.device)
-        truncateds = torch.FloatTensor(truncateds).to(self.device)
 
+        # Compute current Q values
         q_values = self.model(states)
-        next_q_values = self.model(next_states)
-        
-        q_values_target = q_values.clone().detach()
-        
+
+        # Compute next Q values for the next states using the target model
+        next_q_values = self.target_model(next_states)
+
+        # Initialize target Q values with the same shape as q_values
+        target_q_values = q_values.clone().detach()
+
         for i in range(batch_size):
-            if terminateds[i] or truncateds[i]:
-                q_values_target[i][actions[i]] = rewards[i]
+            if terminateds[i]:
+                target_q_values[i] = rewards[i]
             else:
-                q_values_target[i][actions[i]] = rewards[i] + self.gamma * torch.max(next_q_values[i])
-        
-        loss = self.criterion(q_values, q_values_target)
-        
+                target_q_values[i] = rewards[i] + self.gamma * torch.max(next_q_values[i])
+
+        # Debugging: Print intermediate values
+        print("Q-values:", q_values.cpu().detach().numpy())
+        print("Current Q-values:", q_values.cpu().detach().numpy())
+        print("Target Q-values:", target_q_values.cpu().detach().numpy())
+        print("Actions:", actions.cpu().detach().numpy())
+        print("Rewards:", rewards.cpu().detach().numpy())
+        print("Terminateds:", terminateds.cpu().detach().numpy())
+
+        loss = self.criterion(q_values, target_q_values)
+
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
-    def decay_epsilon(self):
+        self.step_counter += 1
+        if self.step_counter % self.target_update == 0:
+            self.update_target_model()
+        
         if self.epsilon > self.epsilon_min:
-            self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
+            self.epsilon *= self.epsilon_decay
             print(f"Updated epsilon: {self.epsilon}")
+
+        return loss.item()
+            
 
     def save_model(self, filename='dqn_model'):
         directory = 'saves'
@@ -109,3 +136,9 @@ class DQNAgent:
         filepath = os.path.join(directory, f"{filename}.pth")
         torch.save(self.model.state_dict(), filepath)
         print(f"Model saved to {filepath}")
+
+    def load_model(self, filename='dqn_model'):
+        filepath = os.path.join('saves', f"{filename}.pth")
+        self.model.load_state_dict(torch.load(filepath))
+        self.target_model.load_state_dict(torch.load(filepath))
+        print(f"Model loaded from {filepath}")

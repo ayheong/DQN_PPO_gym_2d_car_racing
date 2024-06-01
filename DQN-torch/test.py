@@ -8,7 +8,7 @@ gym.logger.set_level(40)
 
 
 class Env:
-    def __init__(self, env, sample_f=4):
+    def __init__(self, env, sample_f=10):
         self.env = gym.make(env, verbose=0, render_mode='human')
         self.sample_f = sample_f
 
@@ -49,17 +49,15 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64):
     for episode in range(n_episode):
         episode_steps = 0
         total_reward = 0
+        total_loss = 0  # Accumulate loss
+        loss_count = 0  # Count the number of training steps with valid loss
 
         state = env.reset()
 
         while True:
             action = agent.act(state)
-            print(f"Action taken: {action}")  
+            print(f"Action taken: {action}")
             next_state, reward, done = env.step(action)
-            
-            # Gas and no brake
-            if action[1] > 0 and action[2] == 0:
-                reward *= 1.5
 
             total_steps += 1
             episode_steps += 1
@@ -68,13 +66,18 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64):
             terminated = done
             truncated = not done and episode_steps >= env.env._max_episode_steps
             agent.memorize(state, action, reward, next_state, terminated, truncated)
-            agent.train_model(batch_size)
+            loss = agent.train_model(batch_size)
+
+            if loss is not None:
+                total_loss += loss
+                loss_count += 1
 
             if done:
                 break
 
             state = next_state
 
+        avg_loss = total_loss / loss_count if loss_count > 0 else 0
         scores.append(total_reward)
         avg_score = np.mean(scores[-100:])
 
@@ -83,12 +86,9 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64):
             best_score = avg_score
 
         print(f"Episode: {episode:04}, steps taken: {episode_steps:04}, total steps: {total_steps:07},",
-              f"episode reward: {total_reward:1f}, avg reward: {avg_score:1f}")
-
-        agent.decay_epsilon()
+              f"episode reward: {total_reward:1f}, avg reward: {avg_score:1f}, avg loss: {avg_loss:.6f}")
 
     return scores
-
 
 def dqn_test(env, agent, n_episode=500):
     scores = []
