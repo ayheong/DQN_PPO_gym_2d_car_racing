@@ -6,6 +6,12 @@ from dqn_agent import DQNAgent
 
 gym.logger.set_level(40)
 
+ACTION_SPACE = [
+    (-1, 1, 0.2), (0, 1, 0.2), (1, 1, 0.2),  # Action Space Structure
+    (-1, 1, 0), (0, 1, 0), (1, 1, 0),        # (Steering Wheel, Gas, Brake)
+    (-1, 0, 0.2), (0, 0, 0.2), (1, 0, 0.2),  # -1~1, 0~1, 0~1
+    (-1, 0, 0), (0, 0, 0), (1, 0, 0)
+]
 
 class Env:
     def __init__(self, env, sample_f=10):
@@ -39,8 +45,6 @@ class Env:
         self.flag.append(r)
         assert len(self.flag) == 100
 
-
-
 def dqn_train(env, agent, n_episode=1000, batch_size=64):
     scores = []
     total_steps = 0
@@ -55,8 +59,9 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64):
         state = env.reset()
 
         while True:
-            action = agent.act(state)
-            print(f"Action taken: {action}")
+            action_index = agent.act(state)
+            action = ACTION_SPACE[action_index]
+            # print(f"Action taken: {action_index}, {action}")
             next_state, reward, done = env.step(action)
 
             total_steps += 1
@@ -65,7 +70,7 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64):
 
             terminated = done
             truncated = not done and episode_steps >= env.env._max_episode_steps
-            agent.memorize(state, action, reward, next_state, terminated, truncated)
+            agent.memorize(state, action_index, reward, next_state, terminated, truncated)
             loss = agent.train_model(batch_size)
 
             if loss is not None:
@@ -104,7 +109,8 @@ def dqn_test(env, agent, n_episode=500):
         state = env.reset()
 
         while True:
-            action = agent.act(state)
+            action_index = agent.act(state, is_only_exploit=True)
+            action = ACTION_SPACE[action_index]
             next_state, reward, done = env.step(action)
             total_steps += 1
             episode_steps += 1
@@ -124,23 +130,21 @@ def dqn_test(env, agent, n_episode=500):
               f"reward: {total_reward:1f}, avg reward: {avg_score:1f}, time: {s // 3600:02}:{s % 3600 // 60:02}:{s % 60:02}")
     return scores
 
-
-
 if __name__ == "__main__":
     train = True
     if train:
         print("... start training ...")
-        env = Env('CarRacing-v2', sample_f=4) 
+        env = Env('CarRacing-v2', sample_f=10) 
         state_size = (3, 84, 84)
-        action_size = 3
+        action_size = len(ACTION_SPACE)
         agent = DQNAgent(state_size=state_size, action_size=action_size)
         scores = dqn_train(env, agent, n_episode=1000)
 
     else:
         print("... start testing ...")
-        env = Env('CarRacing-v2', sample_f=4)  
+        env = Env('CarRacing-v2', sample_f=10)  
         state_size = (3, 84, 84)
-        action_size = 3
+        action_size = len(ACTION_SPACE)
         agent = DQNAgent(state_size=state_size, action_size=action_size)
         agent.load_model()
         scores = dqn_test(env, agent, n_episode=100)
