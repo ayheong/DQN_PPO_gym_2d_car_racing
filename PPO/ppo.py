@@ -45,7 +45,11 @@ class Model(nn.Module):
         torch.save(self.state_dict(), self.ckpt_file)
 
     def load_ckpt(self, device):
-        self.load_state_dict(torch.load(self.ckpt_file, map_location=device))
+        self.load_st
+        
+        
+        
+        ate_dict(torch.load(self.ckpt_file, map_location=device))
 
 class Agent:
     def __init__(self, state_dim, action_dim, gamma=0.99, lamda=0.95, clip=0.1,
@@ -87,18 +91,14 @@ class Agent:
 
     def learn(self):
         states, actions, probs, rewards, next_states, values, batchs = self.buffer.generate_batch(self.batch_size)
-        states = np.array(states)
-        actions = np.array(actions)
-        old_logp = np.array(probs)
-        rewards = np.array(rewards)
-        next_s = np.array(next_states)
         
-        s = torch.tensor(states, dtype=torch.float).to(self.device)
-        a = torch.tensor(actions, dtype=torch.float).to(self.device)
-        old_logp = torch.tensor(old_logp, dtype=torch.float).to(self.device)
-        r = torch.tensor(rewards, dtype=torch.float).to(self.device)
-        next_s = torch.tensor(next_s, dtype=torch.float).to(self.device)
+        s = torch.tensor(np.array(states), dtype=torch.float).to(self.device)
+        a = torch.tensor(np.array(actions), dtype=torch.float).to(self.device)
+        old_logp = torch.tensor(np.array(probs), dtype=torch.float).to(self.device)
+        r = torch.tensor(np.array(rewards), dtype=torch.float).to(self.device)
+        next_s = torch.tensor(np.array(next_states), dtype=torch.float).to(self.device)
         v = torch.tensor(values, dtype=torch.float).to(self.device)
+
         advantages = torch.zeros_like(v)
 
         for i in range((len(values)-1)):
@@ -115,7 +115,11 @@ class Agent:
         v_ = v_.view(-1, 1)
 
         for _ in range(self.epochs):
-            for index in batchs:
+            for _ in batchs:
+                
+                random_index = np.random.randint(0, len(batchs))
+                index = batchs[random_index]
+
                 alpha, beta = self.model(s[index])[0]
                 dist = Beta(alpha, beta)
                 new_logp = dist.log_prob(a[index]).sum(dim=1, keepdim=True)
@@ -151,8 +155,8 @@ def ppo_train(env, agent, n_episode, update_step):
         
         while True:
             action, logp, value = agent.select_action(state)
-            move = action * np.array([2., 1., 1.]) + np.array([-1., 0., 0.])
-            next_state, reward, done = env.step(move)
+            action[0] = 2 * (action[0] - 0.5)
+            next_state, reward, done = env.step(action)
 
             total_steps += 1
             episode_steps += 1
