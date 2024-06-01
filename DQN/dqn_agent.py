@@ -10,7 +10,7 @@ ACTION_SPACE = [
 ] # do nothing, left, right, gas, break 
 
 class DQNAgent:
-    def __init__(self, state_size, action_size, buffer_size=8000, gamma=0.99, epsilon=0.9, epsilon_min=0.1, epsilon_decay=0.9999, learning_rate=0.001, target_update=100):
+    def __init__(self, state_size, action_size, buffer_size=8000, gamma=0.99, epsilon=0.9, epsilon_min=0.01, epsilon_decay=0.9999, learning_rate=0.001, target_update=100):
         self.state_size = state_size
         self.action_size = action_size
         self.memory = ReplayBuffer(max_size=buffer_size)
@@ -57,7 +57,7 @@ class DQNAgent:
                 self.fc1 = nn.Linear(self.fc_input_dim, 128)
                 self.fc2 = nn.Linear(128, num_actions)
                 self.apply(self.weights)
-                
+
             def _get_conv_output(self, shape):
                 o = torch.zeros(1, *shape)
                 o = self.conv1(o)
