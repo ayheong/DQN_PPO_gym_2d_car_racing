@@ -45,11 +45,7 @@ class Model(nn.Module):
         torch.save(self.state_dict(), self.ckpt_file)
 
     def load_ckpt(self, device):
-        self.load_st
-        
-        
-        
-        ate_dict(torch.load(self.ckpt_file, map_location=device))
+        self.load_state_dict(torch.load(self.ckpt_file, map_location=device))
 
 class Agent:
     def __init__(self, state_dim, action_dim, gamma=0.99, lamda=0.95, clip=0.1,
