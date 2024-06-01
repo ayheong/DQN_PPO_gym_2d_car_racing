@@ -1,50 +1,143 @@
 import gymnasium as gym
+import time
 import numpy as np
-from DQN.dqn_agent import DQNAgent
 
-env = gym.make('CarRacing-v2', render_mode='human')
-state_size = (96, 96, 3)
-action_size = env.action_space.shape[0]
+from dqn_agent import DQNAgent 
 
-agent = DQNAgent(state_size=state_size, action_size=action_size)
+gym.logger.set_level(40)
 
-episodes = 10  
-batch_size = 32
-save_interval = 5
-frames_per_action = 5
 
-for episode in range(episodes):
-    state, _ = env.reset()
-    state = np.array(state)
-    terminated = False
-    truncated = False
-    episode_memory = []
-    total_reward = 0
+class Env:
+    def __init__(self, env, sample_f=4):
+        self.env = gym.make(env)
+        self.sample_f = sample_f
 
-    while not (terminated or truncated):
-        action = agent.act(state)
-        
-        for _ in range(frames_per_action):
-            next_state, reward, terminated, truncated, _ = env.step(action)
-            next_state = np.array(next_state)
+    def reset(self):
+        state, _ = self.env.reset()
+        for _ in range(30):
+            state, _, _, _, _ = self.env.step(np.array([0, 0, 0]))
+        self.flag = [0] * 100
+        state = state[:84, 6:90]
+        return np.moveaxis(state, -1, 0) / 255.0
+    
+    def step(self, action):
+        total_reward = 0
+        for _ in range(self.sample_f):
+            state, reward, done, done_, _ = self.env.step(action)
+            
+            total_reward += reward
+            self.update_flag(reward)
 
+            if done or done_ or np.mean(self.flag) <= -0.1:
+                done = True
+                break
+        state = state[:84, 6:90]
+        return np.moveaxis(state, -1, 0) / 255.0, total_reward, done
+
+    def update_flag(self, r):
+        self.flag.pop(0)
+        self.flag.append(r)
+        assert len(self.flag) == 100
+
+
+
+def dqn_train(env, agent, n_episode=1000, batch_size=128):
+    scores = []
+    total_steps = 0
+    best_score = float("-inf")
+
+    for episode in range(n_episode):
+        episode_steps = 0
+        total_reward = 0
+
+        state = env.reset()
+
+        while True:
+            action = agent.act(state)
+            next_state, reward, done = env.step(action)
+            
+            total_steps += 1
+            episode_steps += 1
             total_reward += reward
 
-            episode_memory.append((state, action, reward, next_state, terminated, truncated))
-            state = next_state
-            
-            if terminated or truncated:
+            terminated = done
+            truncated = not done and episode_steps >= env.env._max_episode_steps
+            agent.memorize(state, action, reward, next_state, terminated, truncated)
+            agent.train_model(batch_size)
+
+            if done:
                 break
 
-    for experience in episode_memory:
-        state, action, reward, next_state, terminated, truncated = experience
-        agent.memorize(state, action, reward, next_state, terminated, truncated)
+            state = next_state
 
-    agent.train_model(batch_size)
+        scores.append(total_reward)
+        avg_score = np.mean(scores[-100:])
 
-    print(f"Episode {episode + 1}/{episodes} completed with total reward: {total_reward}")
-    
-    if (episode + 1) % save_interval == 0:
-        agent.save_model(f'dqn_model_episode_{episode + 1}')
-    
-agent.save_model('dqn_model_final')
+        if avg_score > best_score:
+            agent.save_model()
+            best_score = avg_score
+
+        print(f"Episode: {episode:04}, steps taken: {episode_steps:04}, total steps: {total_steps:07},",
+              f"episode reward: {total_reward:1f}, avg reward: {avg_score:1f}")
+
+        agent.decay_epsilon()
+
+    return scores
+
+
+def dqn_test(env, agent, n_episode=500):
+    scores = []
+    total_steps = 0
+    best_score = float("-inf")
+
+    time_start = time.time()
+
+    for episode in range(n_episode):
+        episode_steps = 0
+        total_reward = 0
+
+        state = env.reset()
+
+        while True:
+            action = agent.act(state)
+            next_state, reward, done = env.step(action)
+            total_steps += 1
+            episode_steps += 1
+            total_reward += reward  
+
+            if done:
+                break
+            state = next_state
+
+        scores.append(total_reward)
+        avg_score = np.mean(scores[-100:])
+        if avg_score > best_score:
+            best_score = avg_score
+
+        s = int(time.time() - time_start)
+        print(f"Episode: {episode:04}, steps: {episode_steps:04}, total steps: {total_steps:07},",
+              f"reward: {total_reward:1f}, avg reward: {avg_score:1f}, time: {s // 3600:02}:{s % 3600 // 60:02}:{s % 60:02}")
+    return scores
+
+
+
+if __name__ == "__main__":
+    train = True
+    if train:
+        print("... start training ...")
+        env = Env('CarRacing-v2', sample_f=4) 
+        state_size = (3, 84, 84)
+        action_size = 3
+        agent = DQNAgent(state_size=state_size, action_size=action_size)
+        scores = dqn_train(env, agent, n_episode=1000)
+
+    else:
+        print("... start testing ...")
+        env = Env('CarRacing-v2', sample_f=4)  
+        state_size = (3, 84, 84)
+        action_size = 3
+        agent = DQNAgent(state_size=state_size, action_size=action_size)
+        agent.load_model()
+        scores = dqn_test(env, agent, n_episode=100)
+        print(f"Mean score: {np.mean(scores)}, Std score: {np.std(scores)}")
+        np.save("dqn_car_racing_scores_100", scores)
