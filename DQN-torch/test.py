@@ -8,10 +8,11 @@ gym.logger.set_level(40)
 
 ACTION_SPACE = [
     (0, 0, 0), (0.6, 0, 0), (-0.6, 0, 0), (0, 0.2, 0), (0, 0, 0.8),  # (Steering Wheel, Gas, Brake)
-] # do nothing, left, right, gas, break 
+] # do nothing, left, right, gas, break
+
 
 class Env:
-    def __init__(self, action_stack=1, render = False):
+    def __init__(self, action_stack=1, render = True):
         if render: 
             self.env = gym.make('CarRacing-v2', render_mode = 'human')
         else:
@@ -83,11 +84,14 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64):
 
         avg_loss = total_loss / loss_count if loss_count > 0 else 0
         scores.append(total_reward)
-        avg_score = np.mean(scores[-10:])
+        avg_score = np.mean(scores[-100:])
 
         if avg_score > best_score:
-            agent.save_model()
+            agent.save_model(episode)
             best_score = avg_score
+            
+        if episode % 100 == 0:
+            agent.save_model(episode)
 
         print(f"Episode: {episode:04}, steps taken: {episode_steps:04}, total steps: {total_steps:07},",
               f"episode reward: {total_reward:1f}, avg reward: {avg_score:1f}, avg loss: {avg_loss:.6f}")
@@ -150,11 +154,12 @@ if __name__ == "__main__":
 
     else:
         print("... start testing ...")
-        env = Env(render=True)  
+        env = Env(render=True)
         state_size = (3, 84, 84)
         action_size = len(ACTION_SPACE)
         agent = DQNAgent(state_size=state_size, action_size=action_size)
         agent.load_model()
+        agent.set_evaluation_mode()  # Set the agent to evaluation mode
         scores = dqn_test(env, agent, n_episode=100)
         print(f"Mean score: {np.mean(scores)}, Std score: {np.std(scores)}")
         np.save("dqn_car_racing_scores_100", scores)

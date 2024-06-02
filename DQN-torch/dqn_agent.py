@@ -7,10 +7,11 @@ from replay_buffer import ReplayBuffer
 
 ACTION_SPACE = [
     (0, 0, 0), (0.6, 0, 0), (-0.6, 0, 0), (0, 0.2, 0), (0, 0, 0.8),  # (Steering Wheel, Gas, Brake)
-] # do nothing, left, right, gas, break 
+] # do nothing, left, right, gas, break
+
 
 class DQNAgent:
-    def __init__(self, state_size, action_size, buffer_size=8000, gamma=0.99, epsilon=0.9, epsilon_min=0.01, epsilon_decay=0.9999, learning_rate=0.001, target_update=100):
+    def __init__(self, state_size, action_size, buffer_size=8000, gamma=0.99, epsilon=1, epsilon_min=0.01, epsilon_decay=0.99999, learning_rate=0.001, target_update=100):
         self.state_size = state_size
         self.action_size = action_size
         self.memory = ReplayBuffer(max_size=buffer_size)
@@ -125,11 +126,11 @@ class DQNAgent:
 
         return loss.item()
 
-    def save_model(self, filename='dqn_model'):
+    def save_model(self, episode, filename='dqn_model'):
         directory = 'saves'
         if not os.path.exists(directory):
             os.makedirs(directory)
-        filepath = os.path.join(directory, f"{filename}.pth")
+        filepath = os.path.join(directory, f"{filename}_episode_{episode}.pth")
         torch.save(self.model.state_dict(), filepath)
         print(f"Model saved to {filepath}")
 
@@ -138,3 +139,6 @@ class DQNAgent:
         self.model.load_state_dict(torch.load(filepath))
         self.target_model.load_state_dict(torch.load(filepath))
         print(f"Model loaded from {filepath}")
+        
+    def set_evaluation_mode(self):
+        self.epsilon = self.epsilon_min
