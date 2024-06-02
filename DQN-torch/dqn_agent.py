@@ -7,7 +7,7 @@ from replay_buffer import ReplayBuffer
 
 ACTION_SPACE = [
     (0, 0, 0), (0.6, 0, 0), (-0.6, 0, 0), (0, 0.2, 0), (0, 0, 0.8),  # (Steering Wheel, Gas, Brake)
-] # do nothing, left, right, gas, break
+]  # do nothing, left, right, gas, brake
 
 
 class DQNAgent:
@@ -51,12 +51,12 @@ class DQNAgent:
         class QNetwork(nn.Module):
             def __init__(self, input_shape, num_actions):
                 super(QNetwork, self).__init__()
-                self.conv1 = nn.Conv2d(input_shape[0], 16, kernel_size=3, stride=2)
-                self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=2)
-                self.conv3 = nn.Conv2d(32, 32, kernel_size=3, stride=2)
+                self.conv1 = nn.Conv2d(input_shape[0], 32, kernel_size=8, stride=4)
+                self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
+                self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
                 self.fc_input_dim = self._get_conv_output(input_shape)
-                self.fc1 = nn.Linear(self.fc_input_dim, 128)
-                self.fc2 = nn.Linear(128, num_actions)
+                self.fc1 = nn.Linear(self.fc_input_dim, 512)
+                self.fc2 = nn.Linear(512, num_actions)
                 self.apply(self.weights)
 
             def _get_conv_output(self, shape):
