@@ -113,15 +113,12 @@ class Agent:
         v_ = v_.view(-1, 1)
 
         for _ in range(self.epochs):
-            for _ in batchs:
+            for index in batchs:
                 
-                random_index = np.random.randint(0, len(batchs))
-                index = batchs[random_index]
-
                 alpha, beta = self.model(s[index])[0]
                 dist = Beta(alpha, beta)
                 new_logp = dist.log_prob(a[index]).sum(dim=1, keepdim=True)
-                ratio = new_logp.exp() / old_logp.view(-1, 1)[index].exp()
+                ratio = (new_logp - old_logp.view(-1, 1)[index]).exp()
                 
                 # Surrogate objective
                 surr1 = ratio * advantages[index]
@@ -185,7 +182,7 @@ def ppo_train(env, agent, n_episode, update_step):
         print(f"Epsode: {episode:04}, epsode steps: {episode_steps:04}, total steps: {total_steps:07}, learn steps: {learn_steps:04},",
               f"episode reward: {total_reward:1f}, avg reward: {avg_score:1f}")
         
-    if avg_score == 900:
+    if avg_score == 850:
         return score_list, loss
    
     return score_list, loss
@@ -212,9 +209,9 @@ def ppo_test(env, agent, n_episode):
             if done:
                 break
             state = next_state
-        scores.append(avg_score)
+        
         avg_score = np.mean(scores[-10:])
-
+        scores.append(avg_score)
         if avg_score > best_score:
             best_score = avg_score
 
