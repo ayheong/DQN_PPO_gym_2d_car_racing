@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions.beta import Beta
+import os 
+import matplotlib.pyplot as plt
 
 class Model(nn.Module):
     def __init__(self, obs_dim, act_dim, save_dir="./ppo_model"):
@@ -21,8 +23,8 @@ class Model(nn.Module):
         )
         self.v = nn.Sequential(nn.Linear(3136, 512), nn.ReLU(), nn.Linear(512, 1))
         self.fc = nn.Sequential(nn.Linear(3136, 512), nn.ReLU())
-        self.alpha_head = nn.Sequential(nn.Linear(512, act_dim), nn.Softplus())
-        self.beta_head = nn.Sequential(nn.Linear(512, act_dim),nn.Softplus())
+        self.alpha = nn.Sequential(nn.Linear(512, act_dim), nn.Softplus())
+        self.beta = nn.Sequential(nn.Linear(512, act_dim),nn.Softplus())
 
         self.apply(self.weights)
         self.ckpt_file = save_dir + ".pth"
@@ -35,26 +37,27 @@ class Model(nn.Module):
 
     def forward(self, x):
         x = self.cnn_base(x)
+
         v = self.v(x)
         x = self.fc(x)
-        alpha = self.alpha_head(x) + 1
-        beta = self.beta_head(x) + 1
-        return (alpha, beta), v
+
+        return (self.alpha(x) + 1, self.beta(x) + 1), v
 
     def save_ckpt(self):
+        
         torch.save(self.state_dict(), self.ckpt_file)
 
     def load_ckpt(self, device):
         self.load_state_dict(torch.load(self.ckpt_file, map_location=device))
 
 class Agent:
-    def __init__(self, state_dim, action_dim, gamma=0.99, lamda=0.95, clip=0.1,
-                 learning_rate=3e-4, batch_size=128, save_dir='./ppo_model',
+    def __init__(self, state_dim, action_dim, gamma=0.99, lamda=0.95, clip=0.2,
+                 learning_rate=1e-3, batch_size=128, save_dir='./ppo_model',
                  epochs=8, device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
 
-        self.gamma = gamma
-        self.lamda = lamda
-        self.clip = clip
+        self.gamma = gamma # Discount factor
+        self.lamda = lamda # GAE (Generalized Advantage Estimation) factor
+        self.clip = clip # Clipping parameter
         self.batch_size = batch_size
         self.epochs = epochs
         self.buffer = Memory()
@@ -69,7 +72,7 @@ class Agent:
             value = self.model(state)[1]
         dist = Beta(alpha, beta)
         action = dist.sample()
-        logp = dist.log_prob(action).sum(dim=1)
+        logp = dist.log_prob(action).sum(dim=1)  # Log probability of the action
         action = action.squeeze().cpu().numpy()
         logp = logp.item()
         return action, logp, value
@@ -92,12 +95,11 @@ class Agent:
         a = torch.tensor(np.array(actions), dtype=torch.float).to(self.device)
         old_logp = torch.tensor(np.array(probs), dtype=torch.float).to(self.device)
         r = torch.tensor(np.array(rewards), dtype=torch.float).to(self.device)
-        next_s = torch.tensor(np.array(next_states), dtype=torch.float).to(self.device)
         v = torch.tensor(values, dtype=torch.float).to(self.device)
 
         advantages = torch.zeros_like(v)
-
-        for i in range((len(values)-1)):
+        # Compute advantages using Generalized Advantage Estimation (GAE)
+        for i in range(len(values)-1):
             discount = 1
             a_t = 0
             for j in range(i, len(values)-1):
@@ -120,25 +122,28 @@ class Agent:
                 dist = Beta(alpha, beta)
                 new_logp = dist.log_prob(a[index]).sum(dim=1, keepdim=True)
                 ratio = new_logp.exp() / old_logp.view(-1, 1)[index].exp()
-
+                
+                # Surrogate objective
                 surr1 = ratio * advantages[index]
                 surr2 = torch.clamp(ratio, 1. - self.clip, 1. + self.clip) * advantages[index]
 
-                actor_loss = -torch.min(surr1, surr2).mean()  # maximize advantage
+                p_loss = -torch.min(surr1, surr2).mean() # Policy loss
+                v_loss = ((self.model(s[index])[1] - v_[index]) ** 2).mean()  # Value loss
 
-                critic_loss = ((self.model(s[index])[1] - v_[index]) ** 2).mean()  # minimize diff between critics
-
-                loss = actor_loss + critic_loss
+                loss = p_loss + v_loss
 
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-
+        
         self.buffer.clear()
+        return p_loss.item(), v_loss.item()
 
 
 def ppo_train(env, agent, n_episode, update_step):
     scores = []
+    score_list = []
+    loss = []
     total_steps = 0
     learn_steps = 0
     best_score = float("-inf")
@@ -151,8 +156,8 @@ def ppo_train(env, agent, n_episode, update_step):
         
         while True:
             action, logp, value = agent.select_action(state)
-            action[0] = 2 * (action[0] - 0.5)
-            next_state, reward, done = env.step(action)
+            act = action * np.array([2., 1., 1.]) + np.array([-1., 0., 0.]) # ensure the wheel is in between -1 to 1
+            next_state, reward, done = env.step(act)
 
             total_steps += 1
             episode_steps += 1
@@ -161,24 +166,29 @@ def ppo_train(env, agent, n_episode, update_step):
 
             if total_steps % update_step == 0:
                 print("...updating...")
-                agent.learn()
+                p_loss, v_loss = agent.learn()
                 learn_steps += 1
-
+                loss.append((p_loss, v_loss))
             if done:
                 break
             state = next_state
 
         scores.append(total_reward)
-        avg_score = np.mean(scores[-10:]) # take the average of the last 10 elements
-
+        avg_score = np.mean(scores[-100:]) # take the average of the last 10 elements
+        
+        score_list.append((total_reward, avg_score))
         if avg_score > best_score:
             agent.save_model()
             best_score = avg_score
-
+        
+    
         print(f"Epsode: {episode:04}, epsode steps: {episode_steps:04}, total steps: {total_steps:07}, learn steps: {learn_steps:04},",
               f"episode reward: {total_reward:1f}, avg reward: {avg_score:1f}")
-
-    return scores
+        
+    if avg_score == 900:
+        return score_list, loss
+   
+    return score_list, loss
 
 def ppo_test(env, agent, n_episode):
     scores = []
@@ -194,17 +204,17 @@ def ppo_test(env, agent, n_episode):
 
         while True:
             action, _, _ = agent.select_action(state)
-            action_ = action * np.array([2., 1., 1.]) + np.array([-1., 0., 0.])
-            next_state, reward, done = env.step(action_)
+            action[0] = action[0] * 2 - 1 # make sure the range of the wheel is from -1 to 1
+            next_state, reward, done = env.step(action)
             total_steps += 1
             episode_steps += 1
             total_reward += reward
             if done:
                 break
             state = next_state
-
-        scores.append(total_reward)
+        scores.append(avg_score)
         avg_score = np.mean(scores[-10:])
+
         if avg_score > best_score:
             best_score = avg_score
 
@@ -224,7 +234,53 @@ if __name__ == "__main__":
         print("... start training ...")
         env = Env()
         agent = Agent(state_dim=3, action_dim=3)
-        score = ppo_train(env, agent, n_episode=30000, update_step=500)
+        score, loss = ppo_train(env, agent, n_episode=500, update_step=500)
+
+        e_score = [item[0] for item in score]
+        a_score = [item[1] for item in score]
+        plt.figure()
+        plt.plot(e_score, 'b-', label='Episode Score')
+        plt.plot(a_score, 'g-', label='Average Score')
+        plt.xlabel('Episode')
+        plt.ylabel('Score')
+        plt.title('PPO Training Score')
+        plt.grid(True)
+        plt.legend()
+        plt.savefig('ppo_training_score.png')
+
+
+        p_loss = [item[0] for item in loss]
+        v_loss = [item[1] for item in loss]
+        
+        tot_loss = p_loss + v_loss
+
+        plt.figure()
+        plt.plot(p_loss, 'r-', label='Policy Loss')
+        plt.xlabel('Learning Steps')
+        plt.ylabel('Loss')
+        plt.title('PPO Training Loss')
+        plt.grid(True)
+        plt.legend()
+        plt.savefig('ppo_policy_loss.png')
+
+        plt.figure()
+        plt.plot(v_loss, 'g-', label='Value Loss')
+        plt.xlabel('Learning Steps')
+        plt.ylabel('Loss')
+        plt.title('PPO Training Loss')
+        plt.grid(True)
+        plt.legend()
+        plt.savefig('ppo_value_loss.png')
+
+        plt.figure()
+        plt.plot(tot_loss, 'b-', label='Total Loss')
+        plt.xlabel('Learning Steps')
+        plt.ylabel('Loss')
+        plt.title('PPO Training Loss')
+        plt.grid(True)
+        plt.legend()
+        plt.savefig('ppo_total_loss.png')
+
 
     else:
         print("... start testing ...")

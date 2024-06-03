@@ -1,8 +1,6 @@
 import gymnasium as gym
 import numpy as np
 
-gym.logger.set_level(10)
-
 class Env:
     def __init__(self, action_stack = 4, render = False):
         if render: 

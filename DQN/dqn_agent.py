@@ -7,10 +7,11 @@ from replay_buffer import ReplayBuffer
 
 ACTION_SPACE = [
     (0, 0, 0), (0.6, 0, 0), (-0.6, 0, 0), (0, 0.2, 0), (0, 0, 0.8),  # (Steering Wheel, Gas, Brake)
-] # do nothing, left, right, gas, break 
+] # do nothing, left, right, gas, break
+
 
 class DQNAgent:
-    def __init__(self, state_size, action_size, buffer_size=8000, gamma=0.99, epsilon=0.9, epsilon_min=0.01, epsilon_decay=0.9999, learning_rate=0.001, target_update=100):
+    def __init__(self, state_size, action_size, buffer_size=8000, gamma=0.99, epsilon=1, epsilon_min=0.01, epsilon_decay=0.99999, learning_rate=0.001, target_update=100):
         self.state_size = state_size
         self.action_size = action_size
         self.memory = ReplayBuffer(max_size=buffer_size)
@@ -36,7 +37,7 @@ class DQNAgent:
 
     def act(self, state):
         if np.random.rand() <= self.epsilon:
-            action_index = np.random.randint(len(ACTION_SPACE))
+            action_index = np.random.randint(5)
         else:
             state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
             self.model.eval()
@@ -50,12 +51,12 @@ class DQNAgent:
         class QNetwork(nn.Module):
             def __init__(self, input_shape, num_actions):
                 super(QNetwork, self).__init__()
-                self.conv1 = nn.Conv2d(input_shape[0], 16, kernel_size=3, stride=2)
-                self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=2)
-                self.conv3 = nn.Conv2d(32, 32, kernel_size=3, stride=2)
+                self.conv1 = nn.Conv2d(input_shape[0], 32, kernel_size=8, stride=4)
+                self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
+                self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
                 self.fc_input_dim = self._get_conv_output(input_shape)
-                self.fc1 = nn.Linear(self.fc_input_dim, 128)
-                self.fc2 = nn.Linear(128, num_actions)
+                self.fc1 = nn.Linear(self.fc_input_dim, 512)
+                self.fc2 = nn.Linear(512, num_actions)
                 self.apply(self.weights)
 
             def _get_conv_output(self, shape):
@@ -80,7 +81,7 @@ class DQNAgent:
                 output = self.fc2(x)
                 return output
 
-        return QNetwork((3, 84, 84), len(ACTION_SPACE))
+        return QNetwork((3, 84, 84), 5)
 
     def train_model(self, batch_size):
         if len(self.memory) < batch_size:
@@ -125,11 +126,11 @@ class DQNAgent:
 
         return loss.item()
 
-    def save_model(self, filename='dqn_model'):
+    def save_model(self, episode, filename='dqn_model'):
         directory = 'saves'
         if not os.path.exists(directory):
             os.makedirs(directory)
-        filepath = os.path.join(directory, f"{filename}.pth")
+        filepath = os.path.join(directory, f"{filename}_episode_{episode}.pth")
         torch.save(self.model.state_dict(), filepath)
         print(f"Model saved to {filepath}")
 
@@ -138,3 +139,6 @@ class DQNAgent:
         self.model.load_state_dict(torch.load(filepath))
         self.target_model.load_state_dict(torch.load(filepath))
         print(f"Model loaded from {filepath}")
+        
+    def set_evaluation_mode(self):
+        self.epsilon = self.epsilon_min
