@@ -6,12 +6,12 @@ import os
 from replay_buffer import ReplayBuffer
 
 ACTION_SPACE = [
-    (0, 0, 0), (0.6, 0, 0), (-0.6, 0, 0), (0, 0.2, 0), (0, 0.4, 0), (0, 0, 0.8),  # (Steering Wheel, Gas, Brake)
-] # do nothing, left, right, gas, break
+    (0, 0, 0), (0.6, 0, 0), (-0.6, 0, 0), (0, 0.2, 0), (0, 0, 0.8),  # (Steering Wheel, Gas, Brake)
+] # do nothing, left, right, gas, brake
 
 
 class DQNAgent:
-    def __init__(self, state_size, action_size, buffer_size=8000, gamma=0.99, epsilon=1, epsilon_min=0.01, epsilon_decay=0.999995, learning_rate=0.001, target_update=100):
+    def __init__(self, state_size, action_size, buffer_size=8000, gamma=0.99, epsilon=1, epsilon_min=0.01, epsilon_decay=0.993, learning_rate=0.001, target_update=100):
         self.state_size = state_size
         self.action_size = action_size
         self.memory = ReplayBuffer(max_size=buffer_size)
@@ -120,10 +120,6 @@ class DQNAgent:
         if self.step_counter % self.target_update == 0:
             self.update_target_model()
 
-        # Decay epsilon
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
-
         return loss.item()
 
     def save_model(self, episode, filename='dqn_model'):
@@ -140,5 +136,6 @@ class DQNAgent:
         self.target_model.load_state_dict(torch.load(filepath))
         print(f"Model loaded from {filepath}")
         
-    def set_evaluation_mode(self):
-        self.epsilon = self.epsilon_min
+    def decay_epsilon(self):
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
