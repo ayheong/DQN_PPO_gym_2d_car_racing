@@ -6,12 +6,12 @@ import os
 from replay_buffer import ReplayBuffer
 
 ACTION_SPACE = [
-    (0, 0, 0), (0.6, 0, 0), (-0.6, 0, 0), (0, 0.2, 0), (0, 0, 0.8),  # (Steering Wheel, Gas, Brake)
-]  # do nothing, left, right, gas, brake
+    (0, 0, 0), (0.6, 0, 0), (-0.6, 0, 0), (0, 0.2, 0), (0, 0.4, 0), (0, 0, 0.8),  # (Steering Wheel, Gas, Brake)
+] # do nothing, left, right, gas, break
 
 
 class DQNAgent:
-    def __init__(self, state_size, action_size, buffer_size=8000, gamma=0.99, epsilon=1, epsilon_min=0.01, epsilon_decay=0.99999, learning_rate=0.001, target_update=100):
+    def __init__(self, state_size, action_size, buffer_size=8000, gamma=0.99, epsilon=1, epsilon_min=0.01, epsilon_decay=0.999995, learning_rate=0.001, target_update=100):
         self.state_size = state_size
         self.action_size = action_size
         self.memory = ReplayBuffer(max_size=buffer_size)

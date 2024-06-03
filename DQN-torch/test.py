@@ -7,7 +7,7 @@ from dqn_agent import DQNAgent
 gym.logger.set_level(40)
 
 ACTION_SPACE = [
-    (0, 0, 0), (0.6, 0, 0), (-0.6, 0, 0), (0, 0.2, 0), (0, 0, 0.8),  # (Steering Wheel, Gas, Brake)
+    (0, 0, 0), (0.6, 0, 0), (-0.6, 0, 0), (0, 0.2, 0), (0, 0.4, 0), (0, 0, 0.8),  # (Steering Wheel, Gas, Brake)
 ] # do nothing, left, right, gas, break
 
 
@@ -31,7 +31,7 @@ class Env:
         total_reward = 0
         for _ in range(self.action_stack):
             state, reward, done, done_, _ = self.env.step(action)
-            
+                
             total_reward += reward
             self.update_reward(reward)
 
