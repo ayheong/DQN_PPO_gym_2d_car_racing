@@ -2,7 +2,9 @@ import gymnasium as gym
 import time
 import numpy as np
 import argparse
+import matplotlib.pyplot as plt
 from dqn_agent import DQNAgent 
+import os
 
 gym.logger.set_level(40)
 
@@ -10,11 +12,10 @@ ACTION_SPACE = [
     (0, 0, 0), (0.6, 0, 0), (-0.6, 0, 0), (0, 0.2, 0), (0, 0, 0.8),  # (Steering Wheel, Gas, Brake)
 ] # do nothing, left, right, gas, brake
 
-
 class Env:
-    def __init__(self, action_stack=1, render = False):
+    def __init__(self, action_stack=1, render=False):
         if render: 
-            self.env = gym.make('CarRacing-v2', render_mode = 'human')
+            self.env = gym.make('CarRacing-v2', render_mode='human')
         else:
             self.env = gym.make('CarRacing-v2')
         self.action_stack = action_stack
@@ -31,10 +32,8 @@ class Env:
         total_reward = 0
         for _ in range(self.action_stack):
             state, reward, done, done_, _ = self.env.step(action)
-                
             total_reward += reward
             self.update_reward(reward)
-
             if done or done_ or np.mean(self.reward_list) <= -0.1:
                 done = True
                 break
@@ -48,6 +47,8 @@ class Env:
 
 def dqn_train(env, agent, n_episode=1000, batch_size=64):
     scores = []
+    losses = []
+    epsilons = []
     total_steps = 0
     best_score = float("-inf")
 
@@ -84,6 +85,8 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64):
 
         avg_loss = total_loss / loss_count if loss_count > 0 else 0
         scores.append(total_reward)
+        losses.append(avg_loss)
+        epsilons.append(agent.epsilon)
         avg_score = np.mean(scores[-100:])
 
         if avg_score > best_score:
@@ -100,7 +103,37 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64):
         
         print(f"Epsilon after episode {episode:04}: {agent.epsilon:.6f}")
 
-    return scores
+    return scores, losses, epsilons
+
+def save_plots(scores, losses, epsilons, output_dir="plots"):
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        
+    episodes = np.arange(len(scores))
+
+    plt.figure()
+    plt.plot(episodes, scores, label='Rewards')
+    plt.xlabel('Episodes')
+    plt.ylabel('Reward')
+    plt.legend()
+    plt.savefig(os.path.join(output_dir, "rewards_plot.png"))
+    plt.close()
+    
+    plt.figure()
+    plt.plot(episodes, losses, label='Loss')
+    plt.xlabel('Episodes')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.savefig(os.path.join(output_dir, "losses_plot.png"))
+    plt.close()
+    
+    plt.figure()
+    plt.plot(episodes, epsilons, label='Epsilon')
+    plt.xlabel('Episodes')
+    plt.ylabel('Epsilon')
+    plt.legend()
+    plt.savefig(os.path.join(output_dir, "epsilons_plot.png"))
+    plt.close()
 
 def dqn_test(env, agent, n_episode=500):
     scores = []
@@ -152,8 +185,8 @@ if __name__ == "__main__":
         state_size = (3, 84, 84)
         action_size = len(ACTION_SPACE)
         agent = DQNAgent(state_size=state_size, action_size=action_size)
-        scores = dqn_train(env, agent, n_episode=1000)
-
+        scores, losses, epsilons = dqn_train(env, agent, n_episode=1000)
+        save_plots(scores, losses, epsilons)
     else:
         print("... start testing ...")
         env = Env(render=True)

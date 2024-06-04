@@ -11,7 +11,7 @@ ACTION_SPACE = [
 
 
 class DQNAgent:
-    def __init__(self, state_size, action_size, buffer_size=8000, gamma=0.99, epsilon=1, epsilon_min=0.01, epsilon_decay=0.993, learning_rate=0.001, target_update=100):
+    def __init__(self, state_size, action_size, buffer_size=8000, gamma=0.99, epsilon=1, epsilon_min=0.01, epsilon_decay=0.99, learning_rate=0.001, target_update=100):
         self.state_size = state_size
         self.action_size = action_size
         self.memory = ReplayBuffer(max_size=buffer_size)
@@ -51,12 +51,12 @@ class DQNAgent:
         class QNetwork(nn.Module):
             def __init__(self, input_shape, num_actions):
                 super(QNetwork, self).__init__()
-                self.conv1 = nn.Conv2d(input_shape[0], 32, kernel_size=8, stride=4)
-                self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
-                self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
+                self.conv1 = nn.Conv2d(input_shape[0], 16, kernel_size=3, stride=2)
+                self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=2)
+                self.conv3 = nn.Conv2d(32, 32, kernel_size=3, stride=2)
                 self.fc_input_dim = self._get_conv_output(input_shape)
-                self.fc1 = nn.Linear(self.fc_input_dim, 512)
-                self.fc2 = nn.Linear(512, num_actions)
+                self.fc1 = nn.Linear(self.fc_input_dim, 128)
+                self.fc2 = nn.Linear(128, num_actions)
                 self.apply(self.weights)
 
             def _get_conv_output(self, shape):
@@ -126,7 +126,7 @@ class DQNAgent:
         directory = 'saves'
         if not os.path.exists(directory):
             os.makedirs(directory)
-        filepath = os.path.join(directory, f"{filename}_episode_{episode}.pth")
+        filepath = os.path.join(directory, f"{filename}.pth")
         torch.save(self.model.state_dict(), filepath)
         print(f"Model saved to {filepath}")
 
