@@ -13,18 +13,24 @@ class Model(nn.Module):
     def __init__(self, obs_dim, act_dim, save_dir="./ppo_model"):
         super(Model, self).__init__()
         self.cnn_base = nn.Sequential(  
-            nn.Conv2d(obs_dim, 32, kernel_size=8, stride=4),
+            nn.Conv2d(obs_dim, 8, kernel_size=4, stride=2),
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2),
-            nn.ReLU(), 
-            nn.Conv2d(64, 64, kernel_size=3, stride=1),  
-            nn.ReLU(),  
+            nn.Conv2d(8, 16, kernel_size=3, stride=2),  
+            nn.ReLU(),  # activation
+            nn.Conv2d(16, 32, kernel_size=3, stride=2),  
+            nn.ReLU(),  # activation
+            nn.Conv2d(32, 64, kernel_size=3, stride=2),  
+            nn.ReLU(),  # activation
+            nn.Conv2d(64, 128, kernel_size=3, stride=1), 
+            nn.ReLU(),  # activation
+            nn.Conv2d(128, 256, kernel_size=2, stride=1), 
+            nn.ReLU(),  # activation
             nn.Flatten(), 
         )
-        self.v = nn.Sequential(nn.Linear(3136, 512), nn.ReLU(), nn.Linear(512, 1))
-        self.fc = nn.Sequential(nn.Linear(3136, 512), nn.ReLU())
-        self.alpha = nn.Sequential(nn.Linear(512, act_dim), nn.Softplus())
-        self.beta = nn.Sequential(nn.Linear(512, act_dim),nn.Softplus())
+        self.v = nn.Sequential(nn.Linear(256, 100), nn.ReLU(), nn.Linear(100, 1))
+        self.fc = nn.Sequential(nn.Linear(256, 100), nn.ReLU())
+        self.alpha = nn.Sequential(nn.Linear(100, act_dim), nn.Softplus())
+        self.beta = nn.Sequential(nn.Linear(100, act_dim),nn.Softplus())
 
         self.apply(self.weights)
         self.ckpt_file = save_dir + ".pth"
@@ -51,7 +57,7 @@ class Model(nn.Module):
         self.load_state_dict(torch.load(self.ckpt_file, map_location=device))
 
 class Agent:
-    def __init__(self, state_dim, action_dim, gamma=0.99, lamda=0.95, clip=0.2,
+    def __init__(self, state_dim, action_dim, gamma=0.99, lamda=0.95, clip=0.1,
                  learning_rate=1e-3, batch_size=128, save_dir='./ppo_model',
                  epochs=8, device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
 
@@ -113,15 +119,12 @@ class Agent:
         v_ = v_.view(-1, 1)
 
         for _ in range(self.epochs):
-            for _ in batchs:
+            for index in batchs:
                 
-                random_index = np.random.randint(0, len(batchs))
-                index = batchs[random_index]
-
                 alpha, beta = self.model(s[index])[0]
                 dist = Beta(alpha, beta)
                 new_logp = dist.log_prob(a[index]).sum(dim=1, keepdim=True)
-                ratio = new_logp.exp() / old_logp.view(-1, 1)[index].exp()
+                ratio = (new_logp - old_logp.view(-1, 1)[index]).exp()
                 
                 # Surrogate objective
                 surr1 = ratio * advantages[index]
@@ -185,7 +188,7 @@ def ppo_train(env, agent, n_episode, update_step):
         print(f"Epsode: {episode:04}, epsode steps: {episode_steps:04}, total steps: {total_steps:07}, learn steps: {learn_steps:04},",
               f"episode reward: {total_reward:1f}, avg reward: {avg_score:1f}")
         
-    if avg_score == 900:
+    if avg_score == 850:
         return score_list, loss
    
     return score_list, loss
@@ -212,9 +215,9 @@ def ppo_test(env, agent, n_episode):
             if done:
                 break
             state = next_state
-        scores.append(avg_score)
+        
         avg_score = np.mean(scores[-10:])
-
+        scores.append(avg_score)
         if avg_score > best_score:
             best_score = avg_score
 
@@ -234,7 +237,7 @@ if __name__ == "__main__":
         print("... start training ...")
         env = Env()
         agent = Agent(state_dim=3, action_dim=3)
-        score, loss = ppo_train(env, agent, n_episode=500, update_step=500)
+        score, loss = ppo_train(env, agent, n_episode=1000, update_step=500)
 
         e_score = [item[0] for item in score]
         a_score = [item[1] for item in score]
