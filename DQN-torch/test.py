@@ -15,9 +15,9 @@ ACTION_SPACE = [
 class Env:
     def __init__(self, action_stack=1, render=False):
         if render: 
-            self.env = gym.make('CarRacing-v2', render_mode='human')
+            self.env = gym.make('CarRacing-v2', render_mode='human', continuous = False)
         else:
-            self.env = gym.make('CarRacing-v2')
+            self.env = gym.make('CarRacing-v2', continuous = False)
         self.action_stack = action_stack
 
     def reset(self):
