@@ -46,7 +46,7 @@ class Env:
         self.reward_list.append(r)
         assert len(self.reward_list) == 100
 
-def dqn_train(env, agent, n_episode=1000, batch_size=64, early_stop_threshold=800):
+def dqn_train(env, agent, n_episode=1000, batch_size=64, early_stop_threshold=900):
     scores = []
     losses = []
     epsilons = []
@@ -90,8 +90,8 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64, early_stop_threshold=80
         epsilons.append(agent.epsilon)
         avg_score = np.mean(scores[-20:])  
 
-        # Save model if new high average score, episode reward >= 600, or every 100 episodes
-        if avg_score > best_score or total_reward >= 600 or episode % 100 == 0:
+        # Save model if new high average score, episode reward >= 600, or every 10 episodes
+        if avg_score > best_score or total_reward >= 600 or episode % 10 == 0:
             agent.save_model(episode, avg_score, total_reward)
             best_score = avg_score if avg_score > best_score else best_score
             

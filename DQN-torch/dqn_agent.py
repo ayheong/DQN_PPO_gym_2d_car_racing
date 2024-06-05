@@ -10,7 +10,7 @@ ACTION_SPACE = [
 ] # do nothing, left, right, gas, brake
 
 class DQNAgent:
-    def __init__(self, state_size, action_size, buffer_size=20000, gamma=0.99, epsilon=1, epsilon_min=0.01, epsilon_decay=0.995, learning_rate=0.001, target_update=100):
+    def __init__(self, state_size, action_size, buffer_size=12500, gamma=0.99, epsilon=1, epsilon_min=0.01, epsilon_decay=0.995, learning_rate=0.001, target_update=100):
         self.state_size = state_size
         self.action_size = action_size
         self.memory = ReplayBuffer(max_size=buffer_size)
