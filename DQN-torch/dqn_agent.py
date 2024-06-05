@@ -9,9 +9,8 @@ ACTION_SPACE = [
     (0, 0, 0), (0.6, 0, 0), (-0.6, 0, 0), (0, 0.2, 0), (0, 0, 0.8),  # (Steering Wheel, Gas, Brake)
 ] # do nothing, left, right, gas, brake
 
-
 class DQNAgent:
-    def __init__(self, state_size, action_size, buffer_size=8000, gamma=0.99, epsilon=1, epsilon_min=0.01, epsilon_decay=0.99, learning_rate=0.001, target_update=100):
+    def __init__(self, state_size, action_size, buffer_size=12500, gamma=0.99, epsilon=1, epsilon_min=0.01, epsilon_decay=0.995, learning_rate=0.001, target_update=100):
         self.state_size = state_size
         self.action_size = action_size
         self.memory = ReplayBuffer(max_size=buffer_size)
@@ -122,11 +121,11 @@ class DQNAgent:
 
         return loss.item()
 
-    def save_model(self, episode, filename='dqn_model'):
+    def save_model(self, episode, avg_reward, episode_reward, filename='dqn_model'):
         directory = 'saves'
         if not os.path.exists(directory):
             os.makedirs(directory)
-        filepath = os.path.join(directory, f"{filename}.pth")
+        filepath = os.path.join(directory, f"{filename}_ep{episode}_avg{avg_reward:.2f}_ep_reward{episode_reward:.2f}.pth")
         torch.save(self.model.state_dict(), filepath)
         print(f"Model saved to {filepath}")
 

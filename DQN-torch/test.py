@@ -5,6 +5,7 @@ import argparse
 import matplotlib.pyplot as plt
 from dqn_agent import DQNAgent 
 import os
+from collections import deque
 
 gym.logger.set_level(40)
 
@@ -14,10 +15,10 @@ ACTION_SPACE = [
 
 class Env:
     def __init__(self, action_stack=1, render=False):
-        if render: 
-            self.env = gym.make('CarRacing-v2', render_mode = 'human', continuous = False)
+        if render:
+            self.env = gym.make('CarRacing-v2', render_mode='human')
         else:
-            self.env = gym.make('CarRacing-v2', continuous = False)
+            self.env = gym.make('CarRacing-v2')
         self.action_stack = action_stack
 
     def reset(self):
@@ -45,7 +46,7 @@ class Env:
         self.reward_list.append(r)
         assert len(self.reward_list) == 100
 
-def dqn_train(env, agent, n_episode=1000, batch_size=64):
+def dqn_train(env, agent, n_episode=1000, batch_size=64, early_stop_threshold=800):
     scores = []
     losses = []
     epsilons = []
@@ -87,21 +88,23 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64):
         scores.append(total_reward)
         losses.append(avg_loss)
         epsilons.append(agent.epsilon)
-        avg_score = np.mean(scores[-100:])
+        avg_score = np.mean(scores[-20:])  
 
-        if avg_score > best_score:
-            agent.save_model(episode)
-            best_score = avg_score
+        if avg_score > best_score or total_reward >= 600:
+            agent.save_model(episode, avg_score, total_reward)
+            best_score = avg_score if avg_score > best_score else best_score
             
         agent.decay_epsilon()
             
-        if episode % 100 == 0:
-            agent.save_model(episode)
-
         print(f"Episode: {episode:04}, steps taken: {episode_steps:04}, total steps: {total_steps:07},",
               f"episode reward: {total_reward:1f}, avg reward: {avg_score:1f}, avg loss: {avg_loss:.6f}")
         
         print(f"Epsilon after episode {episode:04}: {agent.epsilon:.6f}")
+
+        # Check early stopping condition
+        if avg_score >= early_stop_threshold:
+            print(f"Early stopping at episode {episode:04}, avg reward: {avg_score:.2f}")
+            break
 
     return scores, losses, epsilons
 
@@ -181,11 +184,11 @@ if __name__ == "__main__":
 
     if train:
         print("... start training ...")
-        env = Env() 
+        env = Env()
         state_size = (3, 84, 84)
         action_size = len(ACTION_SPACE)
         agent = DQNAgent(state_size=state_size, action_size=action_size)
-        scores, losses, epsilons = dqn_train(env, agent, n_episode=1000)
+        scores, losses, epsilons = dqn_train(env, agent, n_episode=1000, early_stop_threshold=600)
         save_plots(scores, losses, epsilons)
     else:
         print("... start testing ...")
