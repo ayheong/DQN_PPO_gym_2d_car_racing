@@ -237,7 +237,7 @@ if __name__ == "__main__":
         print("... start training ...")
         env = Env()
         agent = Agent(state_dim=3, action_dim=3)
-        score, loss = ppo_train(env, agent, n_episode=1000, update_step=500)
+        score, loss = ppo_train(env, agent, n_episode=1000, update_step=2000)
 
         e_score = [item[0] for item in score]
         a_score = [item[1] for item in score]
