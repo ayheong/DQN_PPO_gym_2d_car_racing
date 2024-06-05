@@ -90,7 +90,8 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64, early_stop_threshold=80
         epsilons.append(agent.epsilon)
         avg_score = np.mean(scores[-20:])  
 
-        if avg_score > best_score or total_reward >= 600:
+        # Save model if new high average score, episode reward >= 600, or every 100 episodes
+        if avg_score > best_score or total_reward >= 600 or episode % 100 == 0:
             agent.save_model(episode, avg_score, total_reward)
             best_score = avg_score if avg_score > best_score else best_score
             
@@ -195,7 +196,7 @@ if __name__ == "__main__":
         env = Env(render=True)
         state_size = (3, 84, 84)
         action_size = len(ACTION_SPACE)
-        agent = DQNAgent(state_size=state_size, action_size=action_size)
+        agent = DQNAgent(state_size=state_size, action_size=action_size, epsilon=0)
         agent.load_model()
         scores = dqn_test(env, agent, n_episode=100)
         print(f"Mean score: {np.mean(scores)}, Std score: {np.std(scores)}")
