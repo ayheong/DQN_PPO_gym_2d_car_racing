@@ -24,7 +24,7 @@ class DQNAgent:
         self.target_model = self.build_model().to(self.device)
         self.update_target_model()
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
-        self.criterion = nn.SmoothL1Loss()  # Huber loss
+        self.criterion = nn.SmoothL1Loss()  
         self.target_update = target_update
         self.step_counter = 0
 
@@ -86,35 +86,27 @@ class DQNAgent:
         if len(self.memory) < batch_size:
             return
 
-        # Sample a batch from the replay buffer
         states, actions, rewards, next_states, terminateds, truncateds = self.memory.sample(batch_size)
 
-        # Convert to tensors and move to the device
         states = torch.FloatTensor(states).to(self.device)
         next_states = torch.FloatTensor(next_states).to(self.device)
         actions = torch.LongTensor(actions).to(self.device)
         rewards = torch.FloatTensor(rewards).to(self.device)
         terminateds = torch.FloatTensor(terminateds).to(self.device)
 
-        # Compute current Q values
         q_values = self.model(states)
         current_q_values = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
 
-        # Compute next Q values for the next states using the target model
         next_q_values = self.target_model(next_states).max(1)[0].detach()
 
-        # Compute target Q values
         target_q_values = rewards + (self.gamma * next_q_values * (1 - terminateds))
-
-        # Compute the loss
+        
         loss = self.criterion(current_q_values, target_q_values)
 
-        # Perform gradient descent
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
-        # Update target model periodically
         self.step_counter += 1
         if self.step_counter % self.target_update == 0:
             self.update_target_model()
