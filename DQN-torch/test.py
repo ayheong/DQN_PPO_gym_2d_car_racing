@@ -52,6 +52,7 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64, early_stop_threshold=90
     epsilons = []
     total_steps = 0
     best_score = float("-inf")
+    output_dir = "plots"
 
     for episode in range(n_episode):
         episode_steps = 0
@@ -102,7 +103,8 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64, early_stop_threshold=90
         
         print(f"Epsilon after episode {episode:04}: {agent.epsilon:.6f}")
 
-        # Check early stopping condition
+        save_plots(scores, losses, epsilons, output_dir)
+
         if avg_score >= early_stop_threshold:
             print(f"Early stopping at episode {episode:04}, avg reward: {avg_score:.2f}")
             break
@@ -189,8 +191,7 @@ if __name__ == "__main__":
         state_size = (3, 84, 84)
         action_size = len(ACTION_SPACE)
         agent = DQNAgent(state_size=state_size, action_size=action_size)
-        scores, losses, epsilons = dqn_train(env, agent, n_episode=1000, early_stop_threshold=600)
-        save_plots(scores, losses, epsilons)
+        scores, losses, epsilons = dqn_train(env, agent, n_episode=1000)
     else:
         print("... start testing ...")
         env = Env(render=True)
