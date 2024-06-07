@@ -133,7 +133,7 @@ class Agent:
                 p_loss = -torch.min(surr1, surr2).mean() # Policy loss
                 v_loss = ((self.model(s[index])[1] - v_[index]) ** 2).mean()  # Value loss
 
-                loss = p_loss + v_loss
+                loss = p_loss + 0.5 * v_loss
 
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -156,7 +156,6 @@ def ppo_train(env, agent, n_episode, update_step):
         total_reward = 0
 
         state = env.reset()
-        
         while True:
             action, logp, value = agent.select_action(state)
             act = action * np.array([2., 1., 1.]) + np.array([-1., 0., 0.]) # ensure the wheel is in between -1 to 1
@@ -188,7 +187,7 @@ def ppo_train(env, agent, n_episode, update_step):
         print(f"Epsode: {episode:04}, epsode steps: {episode_steps:04}, total steps: {total_steps:07}, learn steps: {learn_steps:04},",
               f"episode reward: {total_reward:1f}, avg reward: {avg_score:1f}")
         
-    if avg_score == 850:
+    if avg_score == 800:
         return score_list, loss
    
     return score_list, loss
@@ -237,7 +236,7 @@ if __name__ == "__main__":
         print("... start training ...")
         env = Env()
         agent = Agent(state_dim=3, action_dim=3)
-        score, loss = ppo_train(env, agent, n_episode=1000, update_step=2000)
+        score, loss = ppo_train(env, agent, n_episode=1000, update_step=500)
 
         e_score = [item[0] for item in score]
         a_score = [item[1] for item in score]
@@ -288,7 +287,7 @@ if __name__ == "__main__":
     else:
         print("... start testing ...")
         env = Env(render=True)
-        agent = Agent(state_dim=3, action_dim=3, save_dir='./ppo_model')
+        agent = Agent(state_dim=4, action_dim=3, save_dir='ppo_test_model_1')
         agent.load_model()
         scores = ppo_test(env, agent, n_episode=10)
         print(f"scores mean:{np.mean(scores)}, score std:{np.std(scores)}")
