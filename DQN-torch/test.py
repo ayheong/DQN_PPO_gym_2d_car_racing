@@ -116,9 +116,11 @@ def save_plots(scores, losses, epsilons, output_dir="plots"):
         os.makedirs(output_dir)
         
     episodes = np.arange(len(scores))
+    avg_rewards = np.convolve(scores, np.ones(20)/20, mode='valid')  # Running average with a window of 20
 
     plt.figure()
     plt.plot(episodes, scores, label='Rewards')
+    plt.plot(episodes[:len(avg_rewards)], avg_rewards, label='Average Reward', linestyle='--')
     plt.xlabel('Episodes')
     plt.ylabel('Reward')
     plt.legend()
