@@ -49,8 +49,7 @@ class Env:
 def dqn_train(env, agent, n_episode=1000, batch_size=64, early_stop_threshold=900):
     scores = []
     losses = []
-    epsilons = []    
-    avg_rewards = [] 
+    epsilons = []
     total_steps = 0
     best_score = float("-inf")
     output_dir = "plots"
@@ -91,7 +90,6 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64, early_stop_threshold=90
         losses.append(avg_loss)
         epsilons.append(agent.epsilon)
         avg_score = np.mean(scores[-20:])  
-        avg_rewards.append(avg_score) 
 
         # Save model if new high average score, episode reward >= 600, or every 10 episodes
         if avg_score > best_score or total_reward >= 600 or episode % 10 == 0:
@@ -105,7 +103,7 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64, early_stop_threshold=90
         
         print(f"Epsilon after episode {episode:04}: {agent.epsilon:.6f}")
 
-        save_plots(scores, avg_rewards, losses, epsilons, output_dir)
+        save_plots(scores, losses, epsilons, output_dir)
 
         if avg_score >= early_stop_threshold:
             print(f"Early stopping at episode {episode:04}, avg reward: {avg_score:.2f}")
@@ -113,7 +111,7 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64, early_stop_threshold=90
 
     return scores, losses, epsilons
 
-def save_plots(scores, avg_rewards, losses, epsilons, output_dir="plots"):
+def save_plots(scores, losses, epsilons, output_dir="plots"):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         
@@ -121,7 +119,6 @@ def save_plots(scores, avg_rewards, losses, epsilons, output_dir="plots"):
 
     plt.figure()
     plt.plot(episodes, scores, label='Rewards')
-    plt.plot(episodes, avg_rewards, label='Average Reward', linestyle='--')
     plt.xlabel('Episodes')
     plt.ylabel('Reward')
     plt.legend()
@@ -201,7 +198,7 @@ if __name__ == "__main__":
         state_size = (3, 84, 84)
         action_size = len(ACTION_SPACE)
         agent = DQNAgent(state_size=state_size, action_size=action_size, epsilon=0)
-        agent.load_model()
+        agent.load_model(filename='dqn_model_ep994_avg447.06_ep_reward462.11')
         scores = dqn_test(env, agent, n_episode=100)
         print(f"Mean score: {np.mean(scores)}, Std score: {np.std(scores)}")
         np.save("dqn_car_racing_scores_100", scores)
