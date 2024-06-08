@@ -195,6 +195,8 @@ def ppo_train(env, agent, n_episode, update_step):
    
     return score_list, loss
 
+
+from matplotlib.animation import FuncAnimation, PillowWriter
 def ppo_test(env, agent, n_episode):
     scores = []
     total_steps = 0
@@ -204,7 +206,6 @@ def ppo_test(env, agent, n_episode):
     for episode in range(n_episode):
         episode_steps = 0
         total_reward = 0
-
         state = env.reset()
 
         while True:
@@ -223,8 +224,7 @@ def ppo_test(env, agent, n_episode):
         if avg_score > best_score:
             best_score = avg_score
 
-        print(f"Epsode: {episode:04}, epsode steps: {episode_steps:04}, total steps: {total_steps:07}, learn steps: {learn_steps:04},",
-              f"episode reward: {total_reward:1f}, avg reward: {avg_score:1f}")
+        print(f"Epsode: {episode:04}," f"episode reward: {total_reward:1f}, avg reward: {avg_score:1f}")
     return scores
 
 
