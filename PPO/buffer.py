@@ -3,7 +3,7 @@ class Memory:
     def __init__(self):
         self.states, self.actions, self.probs, self.rewards, self.next_states, self.values = [], [], [], [], [], []
 
-    def store(self, state, action, prob, reward, next_state, value):
+    def memory(self, state, action, prob, reward, next_state, value):
         self.states.append(state)
         self.actions.append(action)
         self.probs.append(prob)
