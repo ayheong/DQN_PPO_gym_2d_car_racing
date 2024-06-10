@@ -5,23 +5,26 @@ import argparse
 import matplotlib.pyplot as plt
 from dqn_agent import DQNAgent 
 import os
+from collections import deque
 
 gym.logger.set_level(40)
 
-
+ACTION_SPACE = [
+    (0, 0, 0), (0.6, 0, 0), (-0.6, 0, 0), (0, 0.2, 0), (0, 0, 0.8),  # (Steering Wheel, Gas, Brake)
+] # do nothing, left, right, gas, brake
 
 class Env:
     def __init__(self, action_stack=1, render=False):
-        if render: 
-            self.env = gym.make('CarRacing-v2', render_mode = 'human', continuous = False)
+        if render:
+            self.env = gym.make('CarRacing-v2', render_mode='human')
         else:
-            self.env = gym.make('CarRacing-v2', continuous = False)
+            self.env = gym.make('CarRacing-v2')
         self.action_stack = action_stack
 
     def reset(self):
         state, _ = self.env.reset()
         for _ in range(30):
-            state, _, _, _, _ = self.env.step(0)
+            state, _, _, _, _ = self.env.step(np.array([0, 0, 0]))
         self.reward_list = [0] * 100
         state = state[:84, 6:90]
         return np.moveaxis(state, -1, 0) / 255.0
@@ -43,7 +46,7 @@ class Env:
         self.reward_list.append(r)
         assert len(self.reward_list) == 100
 
-def dqn_train(env, agent, n_episode=1000, batch_size=64):
+def dqn_train(env, agent, n_episode=1000, batch_size=64, early_stop_threshold=900):
     scores = []
     losses = []
     epsilons = []
@@ -60,8 +63,8 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64):
 
         while True:
             action_index = agent.act(state)
-            
-            next_state, reward, done = env.step(action_index)
+            action = ACTION_SPACE[action_index]
+            next_state, reward, done = env.step(action)
 
             total_steps += 1
             episode_steps += 1
@@ -85,18 +88,24 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64):
         scores.append(total_reward)
         losses.append(avg_loss)
         epsilons.append(agent.epsilon)
-        avg_score = np.mean(scores[-100:])
+        avg_score = np.mean(scores[-20:])  
 
-        if avg_score > best_score:
-            agent.save_model(episode)
-            best_score = avg_score
+        # Save model if new high average score, episode reward >= 600, or every 10 episodes
+        if avg_score > best_score or total_reward >= 600 or episode % 10 == 0:
+            agent.save_model(episode, avg_score, total_reward)
+            best_score = avg_score if avg_score > best_score else best_score
             
         agent.decay_epsilon()
-
+            
         print(f"Episode: {episode:04}, steps taken: {episode_steps:04}, total steps: {total_steps:07},",
               f"episode reward: {total_reward:1f}, avg reward: {avg_score:1f}, avg loss: {avg_loss:.6f}")
         
         print(f"Epsilon after episode {episode:04}: {agent.epsilon:.6f}")
+
+        # Check early stopping condition
+        if avg_score >= early_stop_threshold:
+            print(f"Early stopping at episode {episode:04}, avg reward: {avg_score:.2f}")
+            break
 
     return scores, losses, epsilons
 
@@ -145,7 +154,8 @@ def dqn_test(env, agent, n_episode=500):
 
         while True:
             action_index = agent.act(state)
-            next_state, reward, done = env.step(action_index)
+            action = ACTION_SPACE[action_index]
+            next_state, reward, done = env.step(action)
             total_steps += 1
             episode_steps += 1
             total_reward += reward
@@ -175,18 +185,18 @@ if __name__ == "__main__":
 
     if train:
         print("... start training ...")
-        env = Env() 
+        env = Env()
         state_size = (3, 84, 84)
-        
-        agent = DQNAgent(state_size=state_size, action_size=5)
-        scores, losses, epsilons = dqn_train(env, agent, n_episode=1000)
+        action_size = len(ACTION_SPACE)
+        agent = DQNAgent(state_size=state_size, action_size=action_size)
+        scores, losses, epsilons = dqn_train(env, agent, n_episode=2000)
         save_plots(scores, losses, epsilons)
     else:
         print("... start testing ...")
         env = Env(render=True)
         state_size = (3, 84, 84)
-        
-        agent = DQNAgent(state_size=state_size, action_size=5)
+        action_size = len(ACTION_SPACE)
+        agent = DQNAgent(state_size=state_size, action_size=action_size, epsilon=0)
         agent.load_model()
         scores = dqn_test(env, agent, n_episode=100)
         print(f"Mean score: {np.mean(scores)}, Std score: {np.std(scores)}")
