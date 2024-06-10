@@ -71,7 +71,7 @@ def dqn_train(env, agent, n_episode=1000, batch_size=64, early_stop_threshold=90
             total_reward += reward
 
             terminated = done
-            truncated = not done and episode_steps >= env.env._max_episode_steps
+            truncated = not done and episode_steps >= env._max_episode_steps
             agent.memorize(state, action_index, reward, next_state, terminated, truncated)
             loss = agent.train_model(batch_size)
 
