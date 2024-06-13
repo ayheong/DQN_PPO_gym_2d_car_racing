@@ -189,7 +189,7 @@ if __name__ == "__main__":
         state_size = (3, 84, 84)
         action_size = len(ACTION_SPACE)
         agent = DQNAgent(state_size=state_size, action_size=action_size)
-        scores, losses, epsilons = dqn_train(env, agent, n_episode=2000)
+        scores, losses, epsilons = dqn_train(env, agent)
         save_plots(scores, losses, epsilons)
     else:
         print("... start testing ...")
